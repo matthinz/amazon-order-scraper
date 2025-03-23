@@ -274,6 +274,15 @@ function unknown(chunk: string, invoice: Invoice) {
           invoice.tax = m[1];
         },
       },
+      {
+        matches: /Shipped on (.+) (\d+), (\d{4})/,
+        handler(m) {
+          invoice.shipments.push({
+            date: makeDate(m[3], m[1], m[2]),
+            items: [],
+          });
+        },
+      },
     ],
     chunk,
     invoice

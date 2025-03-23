@@ -154,6 +154,7 @@ describe("Invoice from 2003", async () => {
     it("works", () => {
       assert.deepStrictEqual(invoice?.shipments, [
         {
+          date: "2003-12-08",
           items: [
             {
               name: "Film Noir Reader, Alain Silver (Editor)",
@@ -260,12 +261,26 @@ describe("Invoice from 2005", async () => {
     it("works", () => {
       assert.deepStrictEqual(invoice?.shipments, [
         {
+          date: "2005-08-15",
           items: [
             {
               name: "TiVo TCD540040 Series2 40-Hour Digital Video Recorder",
               price: "$94.04",
               quantity: 1,
             },
+          ],
+          shippingAddress: {
+            address: "123 Fake St Apt F",
+            city: "Anytown",
+            country: "United States",
+            name: "Joey Joe Joe Junior Shabbadoo",
+            state: "WA",
+            zip: "90001-6134",
+          },
+        },
+        {
+          date: "2005-08-17",
+          items: [
             {
               name: "Linksys USB200M EtherFast USB 2.0 10/100 Network Adapter",
               price: "$24.99",
