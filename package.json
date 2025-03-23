@@ -1,0 +1,21 @@
+{
+  "name": "amazon-order-scraper",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "date-fns": "^4.1.0",
+    "koa": "^2.16.0",
+    "parse5": "^7.2.1",
+    "playwright": "^1.51.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  }
+}
