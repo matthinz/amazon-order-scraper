@@ -26,7 +26,7 @@ const SUBCOMMANDS: Record<
   years,
 };
 
-const DEFAULT_SUBCOMMAND = "scrape";
+const DEFAULT_SUBCOMMAND = "orders";
 
 run(process.argv.slice(2)).catch((err) => {
   console.error(err);
