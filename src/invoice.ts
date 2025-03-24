@@ -26,6 +26,13 @@ export type Item = {
   quantity?: number;
 };
 
+export type Payment = {
+  type: string;
+  last4: string;
+  date: string;
+  amount: string;
+};
+
 export type ShippingAddress = {
   name?: string;
   address?: string;
@@ -44,6 +51,7 @@ export type Shipment = {
 export type Invoice = {
   orderID?: string;
   date?: string;
+  payments: Payment[];
   placedBy?: string;
   shippingCost?: string;
   subtotal?: string;
@@ -70,6 +78,7 @@ export function parseInvoice(
   log: (...args: unknown[]) => void = NOOP
 ): Invoice {
   const invoice: Invoice = {
+    payments: [],
     shipments: [],
   };
 
@@ -150,6 +159,26 @@ function items(chunk: string, invoice: Invoice) {
             quantity: parseInt(m[1], 10),
           });
           return item;
+        },
+      },
+    ],
+    chunk,
+    invoice
+  );
+}
+
+function payments(chunk: string, invoice: Invoice) {
+  return executeParserSteps(
+    [
+      {
+        matches: /(.+) ending in (\d+): (.+) (\d+), (\d{4}): (.+)/,
+        handler(m) {
+          invoice.payments.push({
+            type: m[1],
+            last4: m[2],
+            amount: m[6],
+            date: makeDate(m[5], m[3], m[4]),
+          });
         },
       },
     ],
@@ -282,6 +311,10 @@ function unknown(chunk: string, invoice: Invoice) {
             items: [],
           });
         },
+      },
+      {
+        equals: "Credit Card transactions",
+        handler: () => payments,
       },
     ],
     chunk,

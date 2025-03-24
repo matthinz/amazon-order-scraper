@@ -333,7 +333,7 @@ describe("Invoice from 2024", async () => {
       "fixtures/invoice-2024.html",
       "utf-8"
     );
-    invoice = parseInvoice(fixtureHTML, console.error);
+    invoice = parseInvoice(fixtureHTML);
   });
 
   describe("#date", () => {
@@ -374,6 +374,19 @@ describe("Invoice from 2024", async () => {
             zip: "90001-1510",
             country: "United States",
           },
+        },
+      ]);
+    });
+  });
+
+  describe("#payments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(invoice.payments, [
+        {
+          date: "2024-10-28",
+          amount: "$119.78",
+          type: "Visa",
+          last4: "1234",
         },
       ]);
     });
