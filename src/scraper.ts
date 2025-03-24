@@ -52,7 +52,7 @@ export class Scraper {
   ) {
     this.#options = {
       ...DEFAULTS,
-      ...(options ?? {}),
+      ...options,
     };
   }
 

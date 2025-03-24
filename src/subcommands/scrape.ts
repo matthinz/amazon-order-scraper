@@ -12,6 +12,8 @@ type ScrapeAttemptResult =
     }
   | {
       complete: true;
+      needSignIn?: false;
+      page?: Page;
     };
 
 export async function scrape(options: SubcommandOptions): Promise<void> {
@@ -26,19 +28,15 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
         return;
       }
 
-      if (result.needSignIn) {
-        if (!options.interactionAllowed) {
-          throw new Error(
-            "You must sign in to Amazon.com, but --no-interaction has been specified."
-          );
-        }
-
-        await promptForSignIn(options.rl);
-        page = result.page;
-        continue;
+      if (!options.interactionAllowed) {
+        throw new Error(
+          "You must sign in to Amazon.com, but --no-interaction has been specified."
+        );
       }
 
-      throw new Error("Unexpected scrape attempt result.");
+      await promptForSignIn(options.rl);
+      page = result.page;
+      continue;
     }
   } finally {
     await scraper.close();

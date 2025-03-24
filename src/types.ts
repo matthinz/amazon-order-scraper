@@ -57,8 +57,8 @@ export type Order = {
   payments: Payment[];
   placedBy?: string;
   shipments: Shipment[];
-  shippingCost: string;
-  shippingCostCents: number;
+  shippingCost?: string;
+  shippingCostCents?: number;
   subtotal: string;
   subtotalCents: number;
   tax: string;

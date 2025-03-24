@@ -74,7 +74,8 @@ async function run(args: string[]): Promise<void> {
   });
 
   const interactionAllowed = !opts.values.noInteraction;
-  const profile = opts.values.profile ?? "default";
+  const profile =
+    typeof opts.values.profile === "string" ? opts.values.profile : "default";
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

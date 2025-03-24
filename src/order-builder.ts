@@ -4,7 +4,7 @@ import type {
   Payment,
   Shipment,
   ShippingAddress,
-} from "./types";
+} from "./types.ts";
 
 type PartialShipment = Partial<Pick<Shipment, "date">> & {
   items: Partial<OrderItem>[];
@@ -20,7 +20,6 @@ const MONTHS = [
   "June",
   "July",
   "August",
-
   "September",
   "October",
   "November",
@@ -70,7 +69,7 @@ export class OrderBuilder {
           };
         }
 
-        throw new Error(`Unexpected payment type: ${p.type}`);
+        throw new Error(`Unexpected payment type: ${(p as any).type}`);
       }),
       placedBy: this.#order.placedBy,
       shipments: this.#shipments.map((s, index) => {
@@ -95,8 +94,8 @@ export class OrderBuilder {
         }
         return result;
       }),
-      shippingCost: ensure(this.#order, "shippingCost"),
-      shippingCostCents: ensure(this.#order, "shippingCostCents"),
+      shippingCost: this.#order.shippingCost,
+      shippingCostCents: this.#order.shippingCostCents,
       subtotal: ensure(this.#order, "subtotal"),
       subtotalCents: ensure(this.#order, "subtotalCents"),
       tax: ensure(this.#order, "tax"),
@@ -205,7 +204,6 @@ export class OrderBuilder {
     ] as (keyof ShippingAddress)[];
 
     for (const field of fields) {
-      console.error(">>", field, shipment.shippingAddress[field]);
       if (shipment.shippingAddress[field] == null) {
         shipment.shippingAddress[field] = value;
         return this;
@@ -389,11 +387,8 @@ export class OrderBuilder {
     month?: number | string,
     day?: number | string
   ) {
-    console.error(">>> normalizeDate", yearOrDateOrMatchArray, month, day);
-
     if (typeof month === "string" && MONTHS.includes(month)) {
       month = MONTHS.indexOf(month) + 1;
-      console.error(">>> month", month);
     }
 
     if (

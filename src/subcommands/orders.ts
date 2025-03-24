@@ -1,5 +1,10 @@
 import { parseArgs } from "node:util";
 import type { SubcommandOptions } from "../types.ts";
+import {
+  formatMonetaryAmount,
+  monetaryAmountsEqual,
+  parseMonetaryAmount,
+} from "../money.ts";
 
 export async function orders({
   args,
@@ -11,50 +16,70 @@ export async function orders({
       total: {
         type: "string",
       },
+      charge: {
+        type: "string",
+      },
     },
     allowPositionals: false,
     strict: true,
   });
 
-  let invoices = await cache.getInvoices();
+  let orders = await cache.getOrders();
 
   const total =
     options.values.total == null
       ? undefined
-      : parseAmount(options.values.total);
+      : parseMonetaryAmount(options.values.total);
 
   if (total != null) {
-    console.error(`Filtering by total: ${formatAmount(total)}`);
-    invoices = invoices.filter(
-      (invoice) => invoice.total != null && parseAmount(invoice.total) === total
+    console.error(`Filtering by total: ${formatMonetaryAmount(total)}`);
+    orders = orders.filter(
+      (invoice) =>
+        invoice.total != null &&
+        monetaryAmountsEqual(invoice.total, total.cents)
     );
   }
 
-  invoices.forEach((invoice) => {
+  const charge =
+    options.values.charge == null
+      ? undefined
+      : parseMonetaryAmount(options.values.charge);
+
+  if (charge != null) {
+    charge.currency = charge.currency ?? "$";
+
+    console.error(`Filtering by charge: ${formatMonetaryAmount(charge)}`);
+    console.error(charge);
+    orders = orders.filter((invoice) =>
+      invoice.payments.some((payment) => {
+        return (
+          payment.amount != null && monetaryAmountsEqual(payment.amount, charge)
+        );
+      })
+    );
+  }
+
+  orders.forEach((order) => {
     console.log(
       [
-        invoice.date,
-        invoice.orderID,
-        invoice.subtotal,
-        invoice.tax,
-        invoice.shippingCost,
-        invoice.total,
+        order.date,
+        order.id,
+        order.subtotal,
+        order.tax,
+        order.shippingCost,
+        order.total,
       ].join(" ")
     );
 
-    invoice.shipments.forEach((shipment) => {
+    order.shipments.forEach((shipment) => {
       console.log(`  Shipped: ${shipment.date}`);
       shipment.items.forEach((item) => {
         console.log(`    ${item.name} ${item.price}`);
       });
     });
+
+    order.payments.forEach((payment) => {
+      console.log(`  Paid: ${payment.date} ${payment.amount}`);
+    });
   });
-}
-
-function parseAmount(amount: string): number {
-  return Math.floor(parseFloat(amount.replace(/[\$,]/g, "")) * 100);
-}
-
-function formatAmount(amount: number): string {
-  return `$${(amount / 100).toFixed(2)}`;
 }

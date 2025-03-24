@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sqlite from "node:sqlite";
 import { parseInvoice } from "./invoice.ts";
-import type { Invoice } from "./invoice.ts";
+import type { Order } from "./types.ts";
 
 type CacheOptions = {
   dataDir: string;
@@ -30,7 +30,7 @@ export class Cache {
     return row["COUNT(*)"];
   }
 
-  async getOrderInvoiceHTML(orderID: string): Promise<string | void> {
+  async getOrderInvoiceHTML(orderID: string): Promise<string | undefined> {
     const db = await this.initDB();
     const statement = db.prepare(
       "SELECT invoice_html FROM orders WHERE order_id = ?"
@@ -39,10 +39,18 @@ export class Cache {
     return row?.invoice_html;
   }
 
-  async getInvoices(): Promise<Invoice[]> {
+  async getOrders(): Promise<Order[]> {
     const db = await this.initDB();
-    const statement = db.prepare("SELECT invoice_html FROM orders");
-    return statement.all().map((row: any) => parseInvoice(row.invoice_html));
+    const statement = db.prepare("SELECT order_id, invoice_html FROM orders");
+    return statement.all().map((row: any) => {
+      try {
+        return parseInvoice(row.invoice_html);
+      } catch (err) {
+        throw new Error(
+          `Error parsing invoice ${row.order_id}: ${err.message}`
+        );
+      }
+    });
   }
 
   async markYearComplete(year: number): Promise<void> {
@@ -73,7 +81,7 @@ export class Cache {
       "INSERT INTO orders (order_id, date, year, invoice_html) VALUES (?, ?, ?, ?)"
     );
 
-    let invoice: Invoice;
+    let invoice: Order;
 
     try {
       invoice = parseInvoice(invoiceHTML);

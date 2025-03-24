@@ -5,8 +5,8 @@ export async function tokens(options: SubcommandOptions) {
   const orderIDs =
     options.args.length > 0
       ? options.args
-      : ((await options.cache.getInvoices())
-          .map((i) => i.orderID)
+      : ((await options.cache.getOrders())
+          .map((i) => i.id)
           .filter(Boolean) as string[]);
 
   await orderIDs.reduce(

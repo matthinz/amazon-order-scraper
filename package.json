@@ -1,13 +1,10 @@
 {
   "name": "amazon-order-scraper",
   "type": "module",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.0.1",
+  "main": "src/main.ts",
   "license": "MIT",
   "dependencies": {
-    "cheerio": "^1.0.0",
-    "date-fns": "^4.1.0",
-    "koa": "^2.16.0",
     "parse5": "^7.2.1",
     "playwright": "^1.51.1",
     "playwright-extra": "^4.3.6",
