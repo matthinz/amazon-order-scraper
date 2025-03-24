@@ -1,73 +1,83 @@
 import { before, describe, it } from "node:test";
 import assert from "node:assert";
 import fs from "node:fs/promises";
-import { type Invoice, parseInvoice } from "./invoice.ts";
+import { parseInvoice } from "./invoice.ts";
+import type { Order } from "./types.ts";
 
 describe("Invoice from 1998", async () => {
-  let invoice: Invoice;
+  let order: Order;
 
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-1998.html",
       "utf-8"
     );
-    invoice = parseInvoice(fixtureHTML);
+    order = parseInvoice(fixtureHTML);
   });
 
   describe("#date", () => {
     it("works", () => {
-      assert.strictEqual(invoice?.date, "1998-11-05");
+      assert.strictEqual(order?.date, "1998-11-05");
     });
   });
 
   describe("#shipments", () => {
     it("works", () => {
-      assert.deepStrictEqual(invoice?.shipments, [
+      assert.deepStrictEqual(order?.shipments, [
         {
           items: [
             {
               name: "Brave New World, Aldous Huxley",
               price: "$8.00",
+              priceCents: 800,
               quantity: 1,
             },
             {
               name: "The Stories of Ray Bradbury, Ray Bradbury",
               price: "$28.00",
+              priceCents: 2800,
               quantity: 1,
             },
             {
               name: "Deadeye Dick, Kurt",
               price: "$5.59",
+              priceCents: 559,
               quantity: 1,
             },
             {
               name: "Jailbird, Kurt Vonnegut",
               price: "$5.59",
+              priceCents: 559,
               quantity: 1,
             },
             {
               name: "Mother Night, Kurt Vonnegut",
               price: "$5.59",
+              priceCents: 559,
               quantity: 1,
             },
             {
               name: "Slapstick or Lonesome No More!, Kurt Vonnegut",
               price: "$5.59",
+              priceCents: 559,
               quantity: 1,
             },
             {
               name: "Bluebeard, Kurt Vonnegut",
               price: "$5.59",
+              priceCents: 559,
               quantity: 1,
             },
             {
               name: "Palm Sunday, Kurt Vonnegut",
               price: "$5.20",
+              priceCents: 520,
               quantity: 1,
             },
             {
               name: "Catch-22, Joseph L. Heller",
               price: "$8.00",
+              priceCents: 800,
               quantity: 1,
             },
           ],
@@ -84,91 +94,94 @@ describe("Invoice from 1998", async () => {
     });
   });
 
-  describe("#orderID", () => {
+  describe("#id", () => {
     it("works", () => {
-      assert.strictEqual(invoice.orderID, "002-7394758-9918293");
+      assert.strictEqual(order.id, "002-7394758-9918293");
     });
   });
 
   describe("#placedBy", () => {
     it("works", () => {
-      assert.strictEqual(invoice.placedBy, "Joey Joe Joe Junior Shabbadoo");
+      assert.strictEqual(order.placedBy, "Joey Joe Joe Junior Shabbadoo");
     });
   });
 
   describe("#shippingCost", () => {
     it("works", () => {
-      assert.strictEqual(invoice.shippingCost, "$11.55");
+      assert.strictEqual(order.shippingCost, "$11.55");
     });
   });
 
   describe("#subtotal", () => {
     it("works", () => {
-      assert.strictEqual(invoice.subtotal, "$77.15");
+      assert.strictEqual(order.subtotal, "$77.15");
     });
   });
 
   describe("#tax", () => {
     it("works", () => {
-      assert.strictEqual(invoice.tax, "$7.63");
+      assert.strictEqual(order.tax, "$7.63");
     });
   });
 
   describe("#total", () => {
     it("works", () => {
-      assert.strictEqual(invoice.total, "$96.33");
+      assert.strictEqual(order.total, "$96.33");
     });
   });
 });
 
 describe("Invoice from 2003", async () => {
-  let invoice: Invoice;
+  let order: Order;
 
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-2003.html",
       "utf-8"
     );
-    invoice = parseInvoice(fixtureHTML);
+    order = parseInvoice(fixtureHTML);
   });
 
   describe("#date", () => {
     it("works", () => {
-      assert.strictEqual(invoice?.date, "2003-12-07");
+      assert.strictEqual(order?.date, "2003-12-07");
     });
   });
 
-  describe("#orderID", () => {
+  describe("#id", () => {
     it("works", () => {
-      assert.strictEqual(invoice.orderID, "103-4829484-8238293");
+      assert.strictEqual(order.id, "103-4829484-8238293");
     });
   });
 
   describe("#placedBy", () => {
     it("works", () => {
-      assert.strictEqual(invoice.placedBy, undefined);
+      assert.strictEqual(order.placedBy, undefined);
     });
   });
 
   describe("#shipments", () => {
     it("works", () => {
-      assert.deepStrictEqual(invoice?.shipments, [
+      assert.deepStrictEqual(order?.shipments, [
         {
           date: "2003-12-08",
           items: [
             {
               name: "Film Noir Reader, Alain Silver (Editor)",
               price: "$14.00",
+              priceCents: 1400,
               quantity: 1,
             },
             {
               name: "Life Is Beautiful, Roberto Benigni (Actor)",
               price: "$16.99",
+              priceCents: 1699,
               quantity: 1,
             },
             {
               name: "Linksys WUSB11 Wireless-B USB Network Adapter",
               price: "$44.99",
+              priceCents: 4499,
               quantity: 1,
             },
           ],
@@ -187,6 +200,7 @@ describe("Invoice from 2003", async () => {
             {
               name: "My Best Girl, Sam Taylor (Director)",
               price: "$26.99",
+              priceCents: 2699,
               quantity: 1,
             },
           ],
@@ -205,67 +219,68 @@ describe("Invoice from 2003", async () => {
 
   describe("#shippingCost", () => {
     it("works", () => {
-      assert.strictEqual(invoice.shippingCost, "$8.55");
+      assert.strictEqual(order.shippingCost, "$8.55");
     });
   });
 
   describe("#subtotal", () => {
     it("works", () => {
-      assert.strictEqual(invoice.subtotal, "$102.97");
+      assert.strictEqual(order.subtotal, "$102.97");
     });
   });
 
   describe("#tax", () => {
     it("works", () => {
-      assert.strictEqual(invoice.tax, "$9.04");
+      assert.strictEqual(order.tax, "$9.04");
     });
   });
 
   describe("#total", () => {
     it("works", () => {
-      assert.strictEqual(invoice.total, "$112.01");
+      assert.strictEqual(order.total, "$112.01");
     });
   });
 });
 
 describe("Invoice from 2005", async () => {
-  let invoice: Invoice;
+  let order: Order;
 
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-2005.html",
       "utf-8"
     );
-    invoice = parseInvoice(fixtureHTML);
+    order = parseInvoice(fixtureHTML, console.error);
   });
 
   describe("#date", () => {
     it("works", () => {
-      assert.strictEqual(invoice?.date, "2005-08-14");
+      assert.strictEqual(order?.date, "2005-08-14");
     });
   });
 
-  describe("#orderID", () => {
+  describe("#id", () => {
     it("works", () => {
-      assert.strictEqual(invoice.orderID, "103-1238478-9849839");
+      assert.strictEqual(order.id, "103-1238478-9849839");
     });
   });
 
   describe("#placedBy", () => {
     it("works", () => {
-      assert.strictEqual(invoice.placedBy, undefined);
+      assert.strictEqual(order.placedBy, undefined);
     });
   });
 
   describe("#shipments", () => {
     it("works", () => {
-      assert.deepStrictEqual(invoice?.shipments, [
+      assert.deepStrictEqual(order?.shipments, [
         {
           date: "2005-08-15",
           items: [
             {
               name: "TiVo TCD540040 Series2 40-Hour Digital Video Recorder",
               price: "$94.04",
+              priceCents: 9404,
               quantity: 1,
             },
           ],
@@ -284,6 +299,7 @@ describe("Invoice from 2005", async () => {
             {
               name: "Linksys USB200M EtherFast USB 2.0 10/100 Network Adapter",
               price: "$24.99",
+              priceCents: 2499,
               quantity: 1,
             },
           ],
@@ -302,67 +318,167 @@ describe("Invoice from 2005", async () => {
 
   describe("#shippingCost", () => {
     it("works", () => {
-      assert.strictEqual(invoice.shippingCost, "$18.24");
+      assert.strictEqual(order.shippingCost, "$18.24");
     });
   });
 
   describe("#subtotal", () => {
     it("works", () => {
-      assert.strictEqual(invoice.subtotal, "$119.03");
+      assert.strictEqual(order.subtotal, "$119.03");
     });
   });
 
   describe("#tax", () => {
     it("works", () => {
-      assert.strictEqual(invoice.tax, "$9.87");
+      assert.strictEqual(order.tax, "$9.87");
     });
   });
 
   describe("#total", () => {
     it("works", () => {
-      assert.strictEqual(invoice.total, "$128.90");
+      assert.strictEqual(order.total, "$128.90");
+    });
+  });
+});
+
+describe("Invoice from 2017 (with gift card)", async () => {
+  let order: Order;
+
+  before(async () => {
+    const fixtureHTML = await fs.readFile(
+      "fixtures/invoice-2017-gift-card.html",
+      "utf-8"
+    );
+    order = parseInvoice(fixtureHTML);
+  });
+
+  describe("#date", () => {
+    it("works", () => {
+      assert.strictEqual(order?.date, "2017-01-04");
+    });
+  });
+
+  describe("#id", () => {
+    it("works", () => {
+      assert.strictEqual(order.id, "107-9993388-1117733");
+    });
+  });
+
+  describe("#placedBy", () => {
+    it("works", () => {
+      assert.strictEqual(order.placedBy, undefined);
+    });
+  });
+
+  describe("#shipments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order?.shipments, [
+        {
+          date: "2017-01-04",
+          items: [
+            {
+              name: "AmazonBasics AAA Performance Alkaline Batteries (20-Pack) - Packaging May Vary",
+              price: "$7.99",
+              priceCents: 799,
+              quantity: 1,
+            },
+            {
+              name: "AmazonBasics AA Performance Alkaline Batteries (20-Pack) - Packaging May Vary",
+              price: "$8.99",
+              priceCents: 899,
+              quantity: 1,
+            },
+          ],
+          shippingAddress: {
+            name: "Joey Joe Joe Junior Shabbadoo",
+            address: "1234 Fake ST",
+            city: "Anytown",
+            state: "WA",
+            zip: "90001-1725",
+            country: "United States",
+          },
+        },
+      ]);
+    });
+  });
+
+  describe("#payments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order.payments, [
+        {
+          amount: "$18.46",
+          amountCents: 1846,
+          date: "2017-01-04",
+          type: "gift_card",
+        },
+      ]);
+    });
+  });
+
+  describe("#shippingCost", () => {
+    it("works", () => {
+      assert.strictEqual(order.shippingCost, "$0.00");
+    });
+  });
+
+  describe("#subtotal", () => {
+    it("works", () => {
+      assert.strictEqual(order.subtotal, "$16.98");
+    });
+  });
+
+  describe("#tax", () => {
+    it("works", () => {
+      assert.strictEqual(order.tax, "$1.48");
+    });
+  });
+
+  describe("#total", () => {
+    it("works", () => {
+      assert.strictEqual(order.total, "$18.46");
     });
   });
 });
 
 describe("Invoice from 2024", async () => {
-  let invoice: Invoice;
+  let order: Order;
 
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-2024.html",
       "utf-8"
     );
-    invoice = parseInvoice(fixtureHTML);
+    order = parseInvoice(fixtureHTML);
   });
 
   describe("#date", () => {
     it("works", () => {
-      assert.strictEqual(invoice?.date, "2024-10-27");
+      assert.strictEqual(order?.date, "2024-10-27");
     });
   });
 
-  describe("#orderID", () => {
+  describe("#id", () => {
     it("works", () => {
-      assert.strictEqual(invoice.orderID, "103-9483948-3434343");
+      assert.strictEqual(order.id, "103-9483948-3434343");
     });
   });
 
   describe("#placedBy", () => {
     it("works", () => {
-      assert.strictEqual(invoice.placedBy, undefined);
+      assert.strictEqual(order.placedBy, undefined);
     });
   });
 
   describe("#shipments", () => {
     it("works", () => {
-      assert.deepStrictEqual(invoice?.shipments, [
+      assert.deepStrictEqual(order?.shipments, [
         {
           date: "2024-10-28",
           items: [
             {
               name: "HP 206X Black High-yield Toner Cartridge | Works with HP Color LaserJet Pro M255, HP Color LaserJet Pro MFP M282, M283 Series | W2110X, Pack of 1, Black",
               price: "$109.89",
+              priceCents: 10989,
               quantity: 1,
             },
           ],
@@ -381,11 +497,13 @@ describe("Invoice from 2024", async () => {
 
   describe("#payments", () => {
     it("works", () => {
-      assert.deepStrictEqual(invoice.payments, [
+      assert.deepStrictEqual(order.payments, [
         {
+          type: "credit_card",
           date: "2024-10-28",
           amount: "$119.78",
-          type: "Visa",
+          amountCents: 11978,
+          cardType: "Visa",
           last4: "1234",
         },
       ]);
@@ -394,25 +512,25 @@ describe("Invoice from 2024", async () => {
 
   describe("#shippingCost", () => {
     it("works", () => {
-      assert.strictEqual(invoice.shippingCost, "$0.00");
+      assert.strictEqual(order.shippingCost, "$0.00");
     });
   });
 
   describe("#subtotal", () => {
     it("works", () => {
-      assert.strictEqual(invoice.subtotal, "$109.89");
+      assert.strictEqual(order.subtotal, "$109.89");
     });
   });
 
   describe("#tax", () => {
     it("works", () => {
-      assert.strictEqual(invoice.tax, "$9.89");
+      assert.strictEqual(order.tax, "$9.89");
     });
   });
 
   describe("#total", () => {
     it("works", () => {
-      assert.strictEqual(invoice.total, "$119.78");
+      assert.strictEqual(order.total, "$119.78");
     });
   });
 });

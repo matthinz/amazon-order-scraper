@@ -5,6 +5,7 @@ import { scrape } from "./subcommands/scrape.ts";
 import { years } from "./subcommands/years.ts";
 import { orderHTML } from "./subcommands/order-html.ts";
 import { orders } from "./subcommands/orders.ts";
+import { tokens } from "./subcommands/tokens.ts";
 import type { SubcommandOptions } from "./types.ts";
 import { Cache } from "./cache.ts";
 
@@ -21,6 +22,7 @@ const SUBCOMMANDS: Record<
   "order-html": orderHTML,
   orders,
   scrape,
+  tokens,
   years,
 };
 
