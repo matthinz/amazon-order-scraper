@@ -1,9 +1,9 @@
 import readline from "node:readline/promises";
-import { Cache } from "./cache.ts";
+import { DataStore } from "./datastore.ts";
 
 export type SubcommandOptions = {
   args: string[];
-  cache: Cache;
+  datastore: DataStore;
   dataDir: string;
   profile: string;
   rl: readline.Interface;

@@ -3,14 +3,14 @@ import path, { resolve } from "node:path";
 import type { Page } from "playwright";
 import { chromium } from "playwright-extra";
 
-import { Cache } from "./cache.ts";
+import { DataStore } from "./datastore.ts";
 
 type BrowserContext = Awaited<
   ReturnType<typeof chromium.launchPersistentContext>
 >;
 
 export type ScraperOptions = {
-  cache: Cache;
+  datastore: DataStore;
   dataDir: string;
   minDelay: number;
   maxDelay: number;
@@ -21,7 +21,7 @@ export type ScraperOptions = {
 const ORDERS_URL = "https://www.amazon.com/your-orders/orders";
 const ORDER_ID_REGEX = /(\d+-\d+-\d+)/;
 
-const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "cache">> = {
+const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   minDelay: 2000,
   maxDelay: 5000,
   profile: "default",
@@ -48,7 +48,7 @@ export class Scraper {
   #options: Required<ScraperOptions>;
 
   constructor(
-    options: Partial<ScraperOptions> & { dataDir: string; cache: Cache }
+    options: Partial<ScraperOptions> & { dataDir: string; datastore: DataStore }
   ) {
     this.#options = {
       ...DEFAULTS,
@@ -56,8 +56,8 @@ export class Scraper {
     };
   }
 
-  get cache(): Cache {
-    return this.#options.cache;
+  get datastore(): DataStore {
+    return this.#options.datastore;
   }
 
   public async close() {
@@ -80,7 +80,7 @@ export class Scraper {
         return await years.reduce<Promise<number[]>>(
           async (promise, year) =>
             promise.then(async (result) => {
-              if (await this.cache.yearScraped(year)) {
+              if (await this.datastore.yearScraped(year)) {
                 return result;
               }
               result.push(year);
@@ -99,7 +99,7 @@ export class Scraper {
     return years.reduce<Promise<void>>(
       (promise, year) =>
         promise.then(async () => {
-          if (await this.cache.yearScraped(year)) {
+          if (await this.datastore.yearScraped(year)) {
             return;
           }
 
@@ -107,7 +107,7 @@ export class Scraper {
 
           if (year !== new Date().getFullYear()) {
             this.#options.logger("Marking year %d complete", year);
-            await this.cache.markYearComplete(year);
+            await this.datastore.markYearComplete(year);
           }
         }),
       Promise.resolve()
@@ -196,7 +196,7 @@ export class Scraper {
     return await orders.reduce<Promise<string[]>>(
       async (promise, order) =>
         promise.then(async (result) => {
-          const alreadyScraped = await this.cache.orderScraped(order.id);
+          const alreadyScraped = await this.datastore.orderScraped(order.id);
 
           if (alreadyScraped) {
             this.#options.logger("Already scraped %s", order.id);
@@ -218,7 +218,7 @@ export class Scraper {
 
     await this.withBrowser(invoiceURL, async (page) => {
       const html = await page.content();
-      await this.cache.saveOrderInvoiceHTML(orderID, html);
+      await this.datastore.saveOrderInvoiceHTML(orderID, html);
     });
   }
 

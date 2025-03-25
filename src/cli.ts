@@ -7,7 +7,7 @@ import { orderHTML } from "./subcommands/order-html.ts";
 import { orders } from "./subcommands/orders.ts";
 import { tokens } from "./subcommands/tokens.ts";
 import type { SubcommandOptions } from "./types.ts";
-import { Cache } from "./cache.ts";
+import { DataStore } from "./datastore.ts";
 
 const DATA_DIR = path.join(
   process.env["HOME"] ?? ".",
@@ -44,10 +44,7 @@ export async function run(
 
   const subcommandOptions: SubcommandOptions = {
     args: remainingArgs,
-    cache: new Cache({
-      dataDir: DATA_DIR,
-      profile,
-    }),
+    datastore: new DataStore(path.join(DATA_DIR, "orders.db")),
     dataDir: DATA_DIR,
     profile: profile,
     interactionAllowed,

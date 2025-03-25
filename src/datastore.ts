@@ -4,17 +4,12 @@ import sqlite from "node:sqlite";
 import { parseInvoice } from "./invoice.ts";
 import type { Order } from "./types.ts";
 
-type CacheOptions = {
-  dataDir: string;
-  profile: string;
-};
-
-export class Cache {
+export class DataStore {
   #dbPromise: Promise<sqlite.DatabaseSync> | undefined;
-  #options: CacheOptions;
+  #filename: string;
 
-  constructor(options: CacheOptions) {
-    this.#options = options;
+  constructor(filename: string) {
+    this.#filename = filename;
   }
 
   async completeYears(): Promise<number[]> {
@@ -104,11 +99,7 @@ export class Cache {
     }
 
     return new Promise((resolve) => {
-      const dbPath = path.join(
-        this.#options.dataDir,
-        this.#options.profile,
-        "cache.db"
-      );
+      const dbPath = path.join(this.#filename);
 
       const db = new sqlite.DatabaseSync(dbPath);
 

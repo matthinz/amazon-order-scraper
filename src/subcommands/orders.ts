@@ -8,7 +8,7 @@ import {
 
 export async function orders({
   args,
-  cache,
+  datastore,
 }: SubcommandOptions): Promise<void> {
   const options = parseArgs({
     args: args,
@@ -24,7 +24,7 @@ export async function orders({
     strict: true,
   });
 
-  let orders = await cache.getOrders();
+  let orders = await datastore.getOrders();
 
   const total =
     options.values.total == null

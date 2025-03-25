@@ -5,14 +5,14 @@ export async function tokens(options: SubcommandOptions) {
   const orderIDs =
     options.args.length > 0
       ? options.args
-      : ((await options.cache.getOrders())
+      : ((await options.datastore.getOrders())
           .map((i) => i.id)
           .filter(Boolean) as string[]);
 
   await orderIDs.reduce(
     async (promise, id) =>
       promise.then(async () => {
-        const html = await options.cache.getOrderInvoiceHTML(id);
+        const html = await options.datastore.getOrderInvoiceHTML(id);
         if (html == null) {
           throw new Error(`Invalid order ID: ${id}`);
         }
