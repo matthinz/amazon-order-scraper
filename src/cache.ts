@@ -109,6 +109,7 @@ export class Cache {
         this.#options.profile,
         "cache.db"
       );
+
       const db = new sqlite.DatabaseSync(dbPath);
 
       db.exec(`
