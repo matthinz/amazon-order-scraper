@@ -3,7 +3,7 @@ import { getContentChunks } from "./parsing.ts";
 import type { Order } from "./types.ts";
 
 const CITY_STATE_ZIP_REGEX =
-  /^(?<city>.+), (?<state>[A-Z]+) (?<zip>(\d{5})(-\d{4})?)$/;
+  /^(?<city>.+), (?<state>[A-Za-z]+) (?<zip>(\d{5})(-\d{4})?)$/;
 
 const NOOP = () => {};
 

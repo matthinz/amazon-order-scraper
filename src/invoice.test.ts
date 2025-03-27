@@ -433,6 +433,92 @@ describe("Invoice from 2012", async () => {
   });
 });
 
+describe("Invoice from 2012 (#2)", async () => {
+  let order: Order;
+
+  before(async () => {
+    const fixtureHTML = await fs.readFile(
+      "fixtures/invoice-2012-02.html",
+      "utf-8",
+    );
+    order = parseInvoice(fixtureHTML);
+  });
+
+  describe("#date", () => {
+    it("works", () => {
+      assert.strictEqual(order?.date, "2012-05-22");
+    });
+  });
+
+  describe("#id", () => {
+    it("works", () => {
+      assert.strictEqual(order.id, "103-8833883-9922992");
+    });
+  });
+
+  describe("#placedBy", () => {
+    it("works", () => {
+      assert.strictEqual(order.placedBy, undefined);
+    });
+  });
+
+  describe("#shipments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order?.shipments, [
+        {
+          date: "2012-05-22",
+          items: [
+            {
+              name: "BLACK Apple iPhone 3G 3Gs 8GB 16GB 32GB Textured Silicone Skin Case Cover",
+              price: "$2.48",
+              priceCents: 248,
+              quantity: 1,
+            },
+          ],
+          shippingAddress: {
+            name: "Joey Joe Joe Junior Shabbadoo",
+            address: "1234 Fake Ave NW",
+            city: "Anytown",
+            state: "Washington",
+            zip: "90001",
+            country: "United States",
+          },
+        },
+      ]);
+    });
+  });
+
+  describe("#payments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order.payments, []);
+    });
+  });
+
+  describe("#shippingCost", () => {
+    it("works", () => {
+      assert.strictEqual(order.shippingCost, "$0.00");
+    });
+  });
+
+  describe("#subtotal", () => {
+    it("works", () => {
+      assert.strictEqual(order.subtotal, "$2.48");
+    });
+  });
+
+  describe("#tax", () => {
+    it("works", () => {
+      assert.strictEqual(order.tax, "$0.00");
+    });
+  });
+
+  describe("#total", () => {
+    it("works", () => {
+      assert.strictEqual(order.total, "$2.48");
+    });
+  });
+});
+
 describe("Invoice from 2017 (with gift card)", async () => {
   let order: Order;
 
