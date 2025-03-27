@@ -1,39 +1,52 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import readline from "node:readline/promises";
-import { Scraper, SignInRequiredError, } from "../scraper.js";
+import { InvoiceParsingFailedError, Scraper, SignInRequiredError, } from "../scraper.js";
 export async function scrape(options) {
     let scraper;
     let headless = true;
     try {
         while (true) {
-            scraper = createScraper({
-                ...options,
-                headless,
-            });
+            scraper =
+                scraper ??
+                    createScraper({
+                        ...options,
+                        headless,
+                    });
             const result = await attemptScrape(scraper);
             if (result.complete) {
                 return;
             }
+            if (headless) {
+                // If headless scraping failed, close the scraper and try non-headless
+                await closeScraper();
+                headless = false;
+                continue;
+            }
+            // We're already not headless. This probably means that something is
+            // messed up and the user needs to do something.
+            if ("invoiceParsingFailed" in result && result.invoiceParsingFailed) {
+                const htmlFile = path.join(options.dataDir, "invoice.html");
+                await fs.writeFile(htmlFile, result.invoiceHTML, "utf8");
+                throw new Error(`Failed to parse invoice HTML: ${result.reason}.\n\nInvoice HTML has been saved to ${htmlFile}.`);
+            }
             if (!options.interactionAllowed) {
                 throw new Error("You must sign in to Amazon.com, but --no-interaction has been specified.");
-            }
-            if (headless) {
-                headless = false;
-                options.info("Headless scraping failed, attempting interactive scraping...");
-                const closePromise = scraper.close();
-                scraper = undefined;
-                await closePromise;
-                continue;
             }
             await promptForSignIn(options.rl);
             continue;
         }
     }
     finally {
+        await closeScraper();
+    }
+    function closeScraper() {
         if (scraper) {
             const closePromise = scraper.close();
             scraper = undefined;
-            await closePromise;
+            return closePromise;
         }
+        return Promise.resolve();
     }
 }
 async function attemptScrape(scraper) {
@@ -44,6 +57,14 @@ async function attemptScrape(scraper) {
     catch (err) {
         if (err instanceof SignInRequiredError) {
             return { complete: false, needSignIn: true };
+        }
+        if (err instanceof InvoiceParsingFailedError) {
+            return {
+                complete: false,
+                invoiceParsingFailed: true,
+                invoiceHTML: err.invoiceHTML,
+                reason: err.reason,
+            };
         }
         throw err;
     }

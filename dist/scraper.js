@@ -27,6 +27,22 @@ export class SignInRequiredError extends Error {
         this.name = this.constructor.name;
     }
 }
+export class InvoiceParsingFailedError extends Error {
+    #reason;
+    #invoiceHTML;
+    constructor(reason, invoiceHTML) {
+        super(`Failed to parse invoice: ${reason}`);
+        this.#reason = reason;
+        this.#invoiceHTML = invoiceHTML;
+        this.name = this.constructor.name;
+    }
+    get invoiceHTML() {
+        return this.#invoiceHTML;
+    }
+    get reason() {
+        return this.#reason;
+    }
+}
 export class Scraper {
     #contextPromise;
     #lastNavigationAt = new Date(1970, 0, 1);
@@ -154,9 +170,8 @@ export class Scraper {
             try {
                 parseInvoice(value);
             }
-            catch {
-                this.warn(`Failed to parse invoice for key ${JSON.stringify(key)} (not caching)`);
-                return;
+            catch (err) {
+                throw new InvoiceParsingFailedError(err.message, value);
             }
             await this.datastore.updateCache(key, value);
         };

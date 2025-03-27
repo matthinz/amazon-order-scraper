@@ -67,8 +67,26 @@ const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
 export class SignInRequiredError extends Error {
   constructor() {
     super("Sign in required.");
-
     this.name = this.constructor.name;
+  }
+}
+
+export class InvoiceParsingFailedError extends Error {
+  #reason: string;
+  #invoiceHTML: string;
+  constructor(reason: string, invoiceHTML: string) {
+    super(`Failed to parse invoice: ${reason}`);
+    this.#reason = reason;
+    this.#invoiceHTML = invoiceHTML;
+    this.name = this.constructor.name;
+  }
+
+  get invoiceHTML() {
+    return this.#invoiceHTML;
+  }
+
+  get reason() {
+    return this.#reason;
   }
 }
 
@@ -261,11 +279,8 @@ export class Scraper {
     const updateCache = async (key: string, value: string) => {
       try {
         parseInvoice(value);
-      } catch {
-        this.warn(
-          `Failed to parse invoice for key ${JSON.stringify(key)} (not caching)`,
-        );
-        return;
+      } catch (err) {
+        throw new InvoiceParsingFailedError(err.message, value);
       }
       await this.datastore.updateCache(key, value);
     };

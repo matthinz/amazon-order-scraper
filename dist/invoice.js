@@ -1,6 +1,6 @@
 import { OrderBuilder } from "./order-builder.js";
 import { getContentChunks } from "./parsing.js";
-const CITY_STATE_ZIP_REGEX = /^(?<city>.+), (?<state>[A-Z]{2}) (?<zip>(\d{5})(-\d{4})?)$/;
+const CITY_STATE_ZIP_REGEX = /^(?<city>.+), (?<state>[A-Z]+) (?<zip>(\d{5})(-\d{4})?)$/;
 const NOOP = () => { };
 export function parseInvoice(html, log = NOOP) {
     const builder = new OrderBuilder();

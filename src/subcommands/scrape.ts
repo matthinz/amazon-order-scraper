@@ -1,5 +1,8 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import readline from "node:readline/promises";
 import {
+  InvoiceParsingFailedError,
   Scraper,
   SignInRequiredError,
   type ScraperOptions,
@@ -12,8 +15,13 @@ type ScrapeAttemptResult =
       needSignIn: true;
     }
   | {
+      complete: false;
+      invoiceParsingFailed: true;
+      invoiceHTML: string;
+      reason: string;
+    }
+  | {
       complete: true;
-      needSignIn?: false;
     };
 
 export async function scrape(options: SubcommandOptions): Promise<void> {
@@ -22,15 +30,37 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
 
   try {
     while (true) {
-      scraper = createScraper({
-        ...options,
-        headless,
-      });
+      scraper =
+        scraper ??
+        createScraper({
+          ...options,
+          headless,
+        });
 
       const result = await attemptScrape(scraper);
 
       if (result.complete) {
         return;
+      }
+
+      if (headless) {
+        // If headless scraping failed, close the scraper and try non-headless
+        await closeScraper();
+        headless = false;
+
+        continue;
+      }
+
+      // We're already not headless. This probably means that something is
+      // messed up and the user needs to do something.
+
+      if ("invoiceParsingFailed" in result && result.invoiceParsingFailed) {
+        const htmlFile = path.join(options.dataDir, "invoice.html");
+        await fs.writeFile(htmlFile, result.invoiceHTML, "utf8");
+
+        throw new Error(
+          `Failed to parse invoice HTML: ${result.reason}.\n\nInvoice HTML has been saved to ${htmlFile}.`,
+        );
       }
 
       if (!options.interactionAllowed) {
@@ -39,27 +69,21 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
         );
       }
 
-      if (headless) {
-        headless = false;
-        options.info(
-          "Headless scraping failed, attempting interactive scraping...",
-        );
-        const closePromise = scraper.close();
-        scraper = undefined;
-        await closePromise;
-        continue;
-      }
-
       await promptForSignIn(options.rl);
 
       continue;
     }
   } finally {
+    await closeScraper();
+  }
+
+  function closeScraper(): Promise<void> {
     if (scraper) {
       const closePromise = scraper.close();
       scraper = undefined;
-      await closePromise;
+      return closePromise;
     }
+    return Promise.resolve();
   }
 }
 
@@ -70,6 +94,15 @@ async function attemptScrape(scraper: Scraper): Promise<ScrapeAttemptResult> {
   } catch (err) {
     if (err instanceof SignInRequiredError) {
       return { complete: false, needSignIn: true };
+    }
+
+    if (err instanceof InvoiceParsingFailedError) {
+      return {
+        complete: false,
+        invoiceParsingFailed: true,
+        invoiceHTML: err.invoiceHTML,
+        reason: err.reason,
+      };
     }
     throw err;
   }

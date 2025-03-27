@@ -300,6 +300,84 @@ describe("Invoice from 2005", async () => {
         });
     });
 });
+describe("Invoice from 2012", async () => {
+    let order;
+    before(async () => {
+        const fixtureHTML = await fs.readFile("fixtures/invoice-2012.html", "utf-8");
+        order = parseInvoice(fixtureHTML);
+    });
+    describe("#date", () => {
+        it("works", () => {
+            assert.strictEqual(order?.date, "2012-10-24");
+        });
+    });
+    describe("#id", () => {
+        it("works", () => {
+            assert.strictEqual(order.id, "002-7484749-0022994");
+        });
+    });
+    describe("#placedBy", () => {
+        it("works", () => {
+            assert.strictEqual(order.placedBy, undefined);
+        });
+    });
+    describe("#shipments", () => {
+        it("works", () => {
+            assert.deepStrictEqual(order?.shipments, [
+                {
+                    date: "2012-10-26",
+                    items: [
+                        {
+                            name: "Hat",
+                            price: "$20.99",
+                            priceCents: 2099,
+                            quantity: 1,
+                        },
+                        {
+                            name: "Cuisinart DLC-001TX stainless steel blade.",
+                            price: "$26.75",
+                            priceCents: 2675,
+                            quantity: 1,
+                        },
+                    ],
+                    shippingAddress: {
+                        name: "Joey Joe Joe Junior Shabbadoo",
+                        address: "1234 Fake ST",
+                        city: "Anytown",
+                        state: "WASHINGTON",
+                        zip: "90001-3507",
+                        country: "United States",
+                    },
+                },
+            ]);
+        });
+    });
+    describe("#payments", () => {
+        it("works", () => {
+            assert.deepStrictEqual(order.payments, []);
+        });
+    });
+    describe("#shippingCost", () => {
+        it("works", () => {
+            assert.strictEqual(order.shippingCost, "$5.63");
+        });
+    });
+    describe("#subtotal", () => {
+        it("works", () => {
+            assert.strictEqual(order.subtotal, "$47.74");
+        });
+    });
+    describe("#tax", () => {
+        it("works", () => {
+            assert.strictEqual(order.tax, "$0.00");
+        });
+    });
+    describe("#total", () => {
+        it("works", () => {
+            assert.strictEqual(order.total, "$47.74");
+        });
+    });
+});
 describe("Invoice from 2017 (with gift card)", async () => {
     let order;
     before(async () => {
