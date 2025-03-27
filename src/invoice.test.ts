@@ -568,8 +568,14 @@ describe("Invoice from 2025", async () => {
     it("works", () => {
       assert.deepStrictEqual(order?.shipments, [
         {
-          date: "2024-10-28",
-          items: [],
+          items: [
+            {
+              name: "ALTOIDS Arctic Strawberry Breath Mints Hard Candy Bulk, 1.2 oz Tin (Pack of 8)",
+              price: "$23.92",
+              priceCents: 2392,
+              quantity: 1,
+            },
+          ],
           shippingAddress: {
             name: "Joey Joe Joe Junior Shabbadoo",
             address: "1234 Fake ST",
@@ -585,16 +591,8 @@ describe("Invoice from 2025", async () => {
 
   describe("#payments", () => {
     it("works", () => {
-      assert.deepStrictEqual(order.payments, [
-        {
-          type: "credit_card",
-          date: "2024-10-28",
-          amount: "$119.78",
-          amountCents: 11978,
-          cardType: "Visa",
-          last4: "1234",
-        },
-      ]);
+      // Order hasn't shipped, thus no payments
+      assert.deepStrictEqual(order.payments, []);
     });
   });
 
@@ -606,19 +604,19 @@ describe("Invoice from 2025", async () => {
 
   describe("#subtotal", () => {
     it("works", () => {
-      assert.strictEqual(order.subtotal, "$109.89");
+      assert.strictEqual(order.subtotal, "$23.92");
     });
   });
 
   describe("#tax", () => {
     it("works", () => {
-      assert.strictEqual(order.tax, "$9.89");
+      assert.strictEqual(order.tax, "$0.00");
     });
   });
 
   describe("#total", () => {
     it("works", () => {
-      assert.strictEqual(order.total, "$119.78");
+      assert.strictEqual(order.total, "$23.92");
     });
   });
 });

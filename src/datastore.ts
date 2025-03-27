@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 import sqlite from "node:sqlite";
 import { parseInvoice } from "./invoice.ts";
@@ -32,15 +31,6 @@ export class DataStore {
     statement.run(key, value);
   }
 
-  async getOrderInvoiceHTML(orderID: string): Promise<string | undefined> {
-    const db = await this.initDB();
-    const statement = db.prepare(
-      "SELECT invoice_html FROM orders WHERE order_id = ?",
-    );
-    const row = statement.get(orderID) as any;
-    return row?.invoice_html;
-  }
-
   async getOrders(): Promise<Order[]> {
     const db = await this.initDB();
     const statement = db.prepare("SELECT order_id, invoice_html FROM orders");
@@ -53,44 +43,6 @@ export class DataStore {
         );
       }
     });
-  }
-
-  async markYearComplete(year: number): Promise<void> {
-    const db = await this.initDB();
-    const statement = db.prepare(
-      "INSERT OR REPLACE INTO years (year, complete) VALUES (?, 1)",
-    );
-    statement.run(year);
-  }
-
-  async orderScraped(orderID: string): Promise<boolean> {
-    return !!(await this.getOrderInvoiceHTML(orderID));
-  }
-
-  async saveOrderInvoiceHTML(
-    orderID: string,
-    invoiceHTML: string,
-  ): Promise<void> {
-    const db = await this.initDB();
-    const statement = db.prepare(
-      "INSERT INTO orders (order_id, date, year, invoice_html) VALUES (?, ?, ?, ?)",
-    );
-
-    let invoice: Order;
-
-    try {
-      invoice = parseInvoice(invoiceHTML);
-    } catch (err) {
-      await fs.writeFile("invoice-with-error.html", invoiceHTML);
-      throw err;
-    }
-
-    statement.run(
-      orderID,
-      invoice.date ?? null,
-      invoice.date?.split("-")[0] ?? null,
-      invoiceHTML,
-    );
   }
 
   initDB(): Promise<sqlite.DatabaseSync> {

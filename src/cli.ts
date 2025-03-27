@@ -2,10 +2,8 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
 import { DataStore } from "./datastore.ts";
-import { orderHTML } from "./subcommands/order-html.ts";
 import { orders } from "./subcommands/orders.ts";
 import { scrape } from "./subcommands/scrape.ts";
-import { tokens } from "./subcommands/tokens.ts";
 import type { SubcommandOptions } from "./types.ts";
 
 const DATA_DIR = path.join(
@@ -20,10 +18,8 @@ type Subcommand = (options: SubcommandOptions) => Promise<void>;
 type SubcommandSet = Record<string, Subcommand>;
 
 const SUBCOMMANDS: SubcommandSet = {
-  "order-html": orderHTML,
   orders,
   scrape,
-  tokens,
 };
 
 const DEFAULT_SUBCOMMAND = "orders";
