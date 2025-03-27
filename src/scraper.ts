@@ -65,16 +65,10 @@ const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
 };
 
 export class SignInRequiredError extends Error {
-  #page: Page;
-
-  constructor(page: Page) {
+  constructor() {
     super("Sign in required.");
-    this.#page = page;
-    this.name = this.constructor.name;
-  }
 
-  get page(): Page {
-    return this.#page;
+    this.name = this.constructor.name;
   }
 }
 
@@ -161,7 +155,7 @@ export class Scraper {
     const years = this.scrapeYears(content);
 
     if (years == null) {
-      throw new SignInRequiredError(page);
+      throw new SignInRequiredError();
     }
 
     return years;
@@ -284,7 +278,15 @@ export class Scraper {
       updateCache,
     });
 
-    const order = parseInvoice(html);
+    let order: Order;
+
+    try {
+      order = parseInvoice(html, this.debug);
+    } catch (err) {
+      throw new SignInRequiredError();
+    }
+
+    this.datastore.saveOrder(order, this.#options.profile, invoiceURL, html);
 
     this.onOrderScraped(order);
 

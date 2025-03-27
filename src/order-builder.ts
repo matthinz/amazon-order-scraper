@@ -369,6 +369,7 @@ export class OrderBuilder {
     let totalCents = this.#order.totalCents;
 
     if (totalCents == null) {
+      console.error(this.#order);
       throw new Error("Total not set");
     }
 

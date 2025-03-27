@@ -44,6 +44,9 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
         options.info(
           "Headless scraping failed, attempting interactive scraping...",
         );
+        const closePromise = scraper.close();
+        scraper = undefined;
+        await closePromise;
         continue;
       }
 
