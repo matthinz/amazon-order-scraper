@@ -19,7 +19,7 @@ describe("#run", () => {
 
       assert.equal(orders.mock.calls.length, 1);
       assert.deepStrictEqual(orders.mock.calls[0].arguments[0].args, [
-        '--charge="25.25"',
+        "--charge=25.25",
       ]);
     });
   });
