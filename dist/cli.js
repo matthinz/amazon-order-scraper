@@ -5,14 +5,14 @@ import { DataStore } from "./datastore.js";
 import { orders } from "./subcommands/orders.js";
 import { scrape } from "./subcommands/scrape.js";
 const DATA_DIR = path.join(process.env["HOME"] ?? ".", ".cache", "amazon-order-scraper");
-const DEFAULT_PROFILE = "default";
+const DEFAULT_USER = "default";
 const SUBCOMMANDS = {
     orders,
     scrape,
 };
 const DEFAULT_SUBCOMMAND = "orders";
 export async function run(args, subcommands = SUBCOMMANDS) {
-    const { profile, interactionAllowed, subcommand, remainingArgs, ...rest } = parseProgramOptions(args, subcommands, subcommands[DEFAULT_SUBCOMMAND]);
+    const { user, interactionAllowed, subcommand, remainingArgs, ...rest } = parseProgramOptions(args, subcommands, subcommands[DEFAULT_SUBCOMMAND]);
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
@@ -22,7 +22,7 @@ export async function run(args, subcommands = SUBCOMMANDS) {
         args: remainingArgs,
         datastore: new DataStore(path.join(DATA_DIR, "orders.db")),
         dataDir: DATA_DIR,
-        profile: profile,
+        user,
         interactionAllowed,
         rl,
     };
@@ -41,7 +41,7 @@ function parseProgramOptions(args, subcommands, defaultSubcommand) {
         tokens: true,
     });
     let subcommand;
-    let profile;
+    let user;
     let interactionAllowed = true;
     let remainingArgs = [];
     let info = console.error.bind(console);
@@ -63,14 +63,14 @@ function parseProgramOptions(args, subcommands, defaultSubcommand) {
         if (token.kind === "option-terminator") {
             return;
         }
-        if (token.name === "profile") {
+        if (token.name === "user") {
             if (token.value == null) {
                 throw new Error(`Missing value for option: ${token.name}`);
             }
-            if (profile != null) {
+            if (user != null) {
                 throw new Error(`Duplicate option: ${token.name}`);
             }
-            profile = token.value;
+            user = token.value;
             return;
         }
         if (token.name === "no-interaction") {
@@ -92,7 +92,7 @@ function parseProgramOptions(args, subcommands, defaultSubcommand) {
         debug,
         info,
         interactionAllowed,
-        profile: profile ?? DEFAULT_PROFILE,
+        user: user ?? DEFAULT_USER,
         remainingArgs,
         subcommand: subcommand ?? defaultSubcommand,
         warn,

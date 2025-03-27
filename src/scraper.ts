@@ -18,7 +18,7 @@ export type ScraperOptions = {
   headless: boolean;
   minDelay: number;
   maxDelay: number;
-  profile?: string;
+  user?: string;
 
   onCacheHit: (key: string, value: string) => void;
   onCacheMiss: (key: string, description: string) => void;
@@ -51,7 +51,7 @@ const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   headless: true,
   minDelay: 500,
   maxDelay: 1500,
-  profile: "default",
+  user: "default",
 
   onCacheHit: () => {},
   onCacheMiss: () => {},
@@ -198,9 +198,7 @@ export class Scraper {
   }
 
   private cacheKey(url: URL): string {
-    return ["v1", "user", this.#options.profile, "url", url.toString()].join(
-      ":",
-    );
+    return ["v1", "user", this.#options.user, "url", url.toString()].join(":");
   }
 
   protected async getPageContent({
@@ -286,7 +284,7 @@ export class Scraper {
       throw new SignInRequiredError();
     }
 
-    this.datastore.saveOrder(order, this.#options.profile, invoiceURL, html);
+    this.datastore.saveOrder(order, this.#options.user, invoiceURL, html);
 
     this.onOrderScraped(order);
 
@@ -535,6 +533,6 @@ export class Scraper {
   }
 
   get profileDir(): string {
-    return path.join(this.#options.dataDir, "profiles", this.#options.profile);
+    return path.join(this.#options.dataDir, "profiles", this.#options.user);
   }
 }

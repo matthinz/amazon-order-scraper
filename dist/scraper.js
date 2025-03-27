@@ -12,7 +12,7 @@ const DEFAULTS = {
     headless: true,
     minDelay: 500,
     maxDelay: 1500,
-    profile: "default",
+    user: "default",
     onCacheHit: () => { },
     onCacheMiss: () => { },
     onYearStarted: () => { },
@@ -112,7 +112,7 @@ export class Scraper {
         this.#lastNavigationAt = new Date();
     }
     cacheKey(url) {
-        return ["v1", "user", this.#options.profile, "url", url.toString()].join(":");
+        return ["v1", "user", this.#options.user, "url", url.toString()].join(":");
     }
     async getPageContent({ url, checkCache, updateCache, page, }) {
         const cacheKey = this.cacheKey(url);
@@ -172,7 +172,7 @@ export class Scraper {
         catch (err) {
             throw new SignInRequiredError();
         }
-        this.datastore.saveOrder(order, this.#options.profile, invoiceURL, html);
+        this.datastore.saveOrder(order, this.#options.user, invoiceURL, html);
         this.onOrderScraped(order);
         return { wasCached, order };
     }
@@ -335,7 +335,7 @@ export class Scraper {
         return this.#options.warn;
     }
     get profileDir() {
-        return path.join(this.#options.dataDir, "profiles", this.#options.profile);
+        return path.join(this.#options.dataDir, "profiles", this.#options.user);
     }
 }
 //# sourceMappingURL=scraper.js.map

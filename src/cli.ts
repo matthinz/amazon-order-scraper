@@ -12,7 +12,7 @@ const DATA_DIR = path.join(
   "amazon-order-scraper",
 );
 
-const DEFAULT_PROFILE = "default";
+const DEFAULT_USER = "default";
 
 type Subcommand = (options: SubcommandOptions) => Promise<void>;
 type SubcommandSet = Record<string, Subcommand>;
@@ -28,7 +28,7 @@ export async function run(
   args: string[],
   subcommands: SubcommandSet = SUBCOMMANDS,
 ): Promise<void> {
-  const { profile, interactionAllowed, subcommand, remainingArgs, ...rest } =
+  const { user, interactionAllowed, subcommand, remainingArgs, ...rest } =
     parseProgramOptions(args, subcommands, subcommands[DEFAULT_SUBCOMMAND]);
 
   const rl = readline.createInterface({
@@ -41,7 +41,7 @@ export async function run(
     args: remainingArgs,
     datastore: new DataStore(path.join(DATA_DIR, "orders.db")),
     dataDir: DATA_DIR,
-    profile: profile,
+    user,
     interactionAllowed,
     rl,
   };
@@ -54,7 +54,7 @@ export async function run(
 }
 
 type ProgramOptions = {
-  profile: string;
+  user: string;
   interactionAllowed: boolean;
   subcommand: Subcommand;
   remainingArgs: string[];
@@ -73,7 +73,7 @@ function parseProgramOptions(
   });
 
   let subcommand: Subcommand | undefined;
-  let profile: string | undefined;
+  let user: string | undefined;
   let interactionAllowed = true;
   let remainingArgs: string[] = [];
 
@@ -98,14 +98,14 @@ function parseProgramOptions(
       return;
     }
 
-    if (token.name === "profile") {
+    if (token.name === "user") {
       if (token.value == null) {
         throw new Error(`Missing value for option: ${token.name}`);
       }
-      if (profile != null) {
+      if (user != null) {
         throw new Error(`Duplicate option: ${token.name}`);
       }
-      profile = token.value;
+      user = token.value;
       return;
     }
 
@@ -130,7 +130,7 @@ function parseProgramOptions(
     debug,
     info,
     interactionAllowed,
-    profile: profile ?? DEFAULT_PROFILE,
+    user: user ?? DEFAULT_USER,
     remainingArgs,
     subcommand: subcommand ?? defaultSubcommand,
     warn,

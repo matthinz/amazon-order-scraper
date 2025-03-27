@@ -8,7 +8,7 @@ export type SubcommandOptions = {
   warn: (...args: unknown[]) => void;
   datastore: DataStore;
   dataDir: string;
-  profile: string;
+  user: string;
   rl: readline.Interface;
   interactionAllowed: boolean;
 };
