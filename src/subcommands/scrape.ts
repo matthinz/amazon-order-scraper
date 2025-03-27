@@ -1,7 +1,6 @@
-import path from "node:path";
 import readline from "node:readline/promises";
-import { Scraper, SignInRequiredError } from "../scraper.ts";
 import type { Page } from "playwright";
+import { Scraper, SignInRequiredError } from "../scraper.ts";
 import type { SubcommandOptions } from "../types.ts";
 
 type ScrapeAttemptResult =
@@ -17,7 +16,25 @@ type ScrapeAttemptResult =
     };
 
 export async function scrape(options: SubcommandOptions): Promise<void> {
-  const scraper = new Scraper(options);
+  const scraper = new Scraper({
+    ...options,
+    onCacheHit(key) {
+      options.debug(`Cache hit for ${key}`);
+    },
+    onCacheMiss(key, reason) {
+      options.debug(`Cache miss for ${key}: ${reason}`);
+    },
+    onYearStarted(year) {
+      options.info(`Scraping orders for ${year}`);
+    },
+    onYearComplete(year, orders) {
+      options.info(`Scraped ${orders.length} order(s) for ${year}`);
+    },
+    onOrderScraped(order) {
+      options.info(`Scraped order ${order.id}`);
+    },
+  });
+
   let page: Page | undefined;
 
   try {
@@ -30,7 +47,7 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
 
       if (!options.interactionAllowed) {
         throw new Error(
-          "You must sign in to Amazon.com, but --no-interaction has been specified."
+          "You must sign in to Amazon.com, but --no-interaction has been specified.",
         );
       }
 
@@ -45,7 +62,7 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
 
 async function attemptScrape(
   scraper: Scraper,
-  page?: Page
+  page?: Page,
 ): Promise<ScrapeAttemptResult> {
   try {
     await scraper.scrape(page);
@@ -67,7 +84,7 @@ async function promptForSignIn(rl: readline.Interface): Promise<void> {
 | This scraper can't log in for you. Please switch over to the browser and log |
 | yourself into Amazon.com. Then come back here and press Enter to continue.   |
 ================================================================================
-`.trim()
+`.trim(),
   );
 
   await rl.question("");

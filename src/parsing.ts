@@ -1,5 +1,5 @@
-import { parse as parseHTML } from "parse5";
 import type { DefaultTreeAdapterMap } from "parse5";
+import { parse as parseHTML } from "parse5";
 
 type Document = DefaultTreeAdapterMap["document"];
 type ChildNode = Document["childNodes"][number];
@@ -42,8 +42,8 @@ export function visitNodes<T>(
   callback: (
     node: ChildNode,
     skip: () => void,
-    done: (value: T) => void
-  ) => void
+    done: (value: T) => void,
+  ) => void,
 ): T | void {
   let alive = true;
   let result: T | void = undefined;

@@ -1,10 +1,10 @@
 import { parseArgs } from "node:util";
-import type { SubcommandOptions } from "../types.ts";
 import {
   formatMonetaryAmount,
   monetaryAmountsEqual,
   parseMonetaryAmount,
 } from "../money.ts";
+import type { SubcommandOptions } from "../types.ts";
 
 export async function orders({
   args,
@@ -20,7 +20,7 @@ export async function orders({
         type: "string",
       },
     },
-    allowPositionals: false,
+    allowPositionals: true,
     strict: true,
   });
 
@@ -36,7 +36,7 @@ export async function orders({
     orders = orders.filter(
       (invoice) =>
         invoice.total != null &&
-        monetaryAmountsEqual(invoice.total, total.cents)
+        monetaryAmountsEqual(invoice.total, total.cents),
     );
   }
 
@@ -55,8 +55,12 @@ export async function orders({
         return (
           payment.amount != null && monetaryAmountsEqual(payment.amount, charge)
         );
-      })
+      }),
     );
+  }
+
+  if (options.positionals.length > 0) {
+    orders = orders.filter((order) => options.positionals.includes(order.id));
   }
 
   orders.forEach((order) => {
@@ -68,7 +72,7 @@ export async function orders({
         order.tax,
         order.shippingCost,
         order.total,
-      ].join(" ")
+      ].join(" "),
     );
 
     order.shipments.forEach((shipment) => {

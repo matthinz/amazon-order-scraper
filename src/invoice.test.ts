@@ -1,6 +1,6 @@
-import { before, describe, it } from "node:test";
 import assert from "node:assert";
 import fs from "node:fs/promises";
+import { before, describe, it } from "node:test";
 import { parseInvoice } from "./invoice.ts";
 import type { Order } from "./types.ts";
 
@@ -10,7 +10,7 @@ describe("Invoice from 1998", async () => {
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-1998.html",
-      "utf-8"
+      "utf-8",
     );
     order = parseInvoice(fixtureHTML);
   });
@@ -137,7 +137,7 @@ describe("Invoice from 2003", async () => {
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-2003.html",
-      "utf-8"
+      "utf-8",
     );
     order = parseInvoice(fixtureHTML);
   });
@@ -248,7 +248,7 @@ describe("Invoice from 2005", async () => {
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-2005.html",
-      "utf-8"
+      "utf-8",
     );
     order = parseInvoice(fixtureHTML, console.error);
   });
@@ -347,7 +347,7 @@ describe("Invoice from 2017 (with gift card)", async () => {
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-2017-gift-card.html",
-      "utf-8"
+      "utf-8",
     );
     order = parseInvoice(fixtureHTML);
   });
@@ -446,7 +446,7 @@ describe("Invoice from 2024", async () => {
   before(async () => {
     const fixtureHTML = await fs.readFile(
       "fixtures/invoice-2024.html",
-      "utf-8"
+      "utf-8",
     );
     order = parseInvoice(fixtureHTML);
   });
@@ -482,6 +482,94 @@ describe("Invoice from 2024", async () => {
               quantity: 1,
             },
           ],
+          shippingAddress: {
+            name: "Joey Joe Joe Junior Shabbadoo",
+            address: "1234 Fake ST",
+            city: "Anytown",
+            state: "WA",
+            zip: "90001-1510",
+            country: "United States",
+          },
+        },
+      ]);
+    });
+  });
+
+  describe("#payments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order.payments, [
+        {
+          type: "credit_card",
+          date: "2024-10-28",
+          amount: "$119.78",
+          amountCents: 11978,
+          cardType: "Visa",
+          last4: "1234",
+        },
+      ]);
+    });
+  });
+
+  describe("#shippingCost", () => {
+    it("works", () => {
+      assert.strictEqual(order.shippingCost, "$0.00");
+    });
+  });
+
+  describe("#subtotal", () => {
+    it("works", () => {
+      assert.strictEqual(order.subtotal, "$109.89");
+    });
+  });
+
+  describe("#tax", () => {
+    it("works", () => {
+      assert.strictEqual(order.tax, "$9.89");
+    });
+  });
+
+  describe("#total", () => {
+    it("works", () => {
+      assert.strictEqual(order.total, "$119.78");
+    });
+  });
+});
+
+describe("Invoice from 2025", async () => {
+  let order: Order;
+
+  before(async () => {
+    const fixtureHTML = await fs.readFile(
+      "fixtures/invoice-2025.html",
+      "utf-8",
+    );
+    order = parseInvoice(fixtureHTML, console.error);
+  });
+
+  describe("#date", () => {
+    it("works", () => {
+      assert.strictEqual(order?.date, "2025-03-22");
+    });
+  });
+
+  describe("#id", () => {
+    it("works", () => {
+      assert.strictEqual(order.id, "113-3999009-00112299");
+    });
+  });
+
+  describe("#placedBy", () => {
+    it("works", () => {
+      assert.strictEqual(order.placedBy, undefined);
+    });
+  });
+
+  describe("#shipments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order?.shipments, [
+        {
+          date: "2024-10-28",
+          items: [],
           shippingAddress: {
             name: "Joey Joe Joe Junior Shabbadoo",
             address: "1234 Fake ST",

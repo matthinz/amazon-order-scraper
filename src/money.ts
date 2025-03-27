@@ -6,7 +6,7 @@ type MonetaryAmount = {
 
 export function monetaryAmountsEqual(
   a: string | number | MonetaryAmount,
-  b: string | number | MonetaryAmount
+  b: string | number | MonetaryAmount,
 ): boolean {
   a = typeof a === "object" ? a : parseMonetaryAmount(a);
   b = typeof b === "object" ? b : parseMonetaryAmount(b);

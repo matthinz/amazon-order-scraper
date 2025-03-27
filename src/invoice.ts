@@ -9,7 +9,7 @@ const NOOP = () => {};
 
 type ParserHandler = (
   token: string,
-  order: OrderBuilder
+  order: OrderBuilder,
 ) => void | ParserHandler;
 
 type ParserStep =
@@ -17,7 +17,7 @@ type ParserStep =
       matches: RegExp;
       handler: (
         m: RegExpMatchArray,
-        order: OrderBuilder
+        order: OrderBuilder,
       ) => ParserHandler | void;
     }
   | {
@@ -28,7 +28,7 @@ type ParserStep =
 
 export function parseInvoice(
   html: string,
-  log: (...args: unknown[]) => void = NOOP
+  log: (...args: unknown[]) => void = NOOP,
 ): Order {
   const builder = new OrderBuilder();
 
@@ -50,7 +50,7 @@ export function parseInvoice(
 function executeParserSteps(
   steps: ParserStep[],
   token: string,
-  order: OrderBuilder
+  order: OrderBuilder,
 ): ParserHandler | void {
   for (const step of steps) {
     if (typeof step === "function") {
@@ -82,7 +82,7 @@ function item(token: string, order: OrderBuilder) {
         },
       ],
       token,
-      order
+      order,
     ) ?? items(token, order)
   );
 }
@@ -106,7 +106,7 @@ function items(token: string, order: OrderBuilder) {
       },
     ],
     token,
-    order
+    order,
   );
 }
 
@@ -123,13 +123,13 @@ function payments(token: string, order: OrderBuilder) {
             .setPaymentDate(
               m.groups["year"],
               m.groups["month"],
-              m.groups["day"]
+              m.groups["day"],
             );
         },
       },
     ],
     token,
-    order
+    order,
   );
 }
 
@@ -162,7 +162,7 @@ function shipping(token: string, order: OrderBuilder) {
       },
     ],
     token,
-    order
+    order,
   );
 }
 
@@ -237,7 +237,7 @@ function unknown(token: string, order: OrderBuilder) {
       },
     ],
     token,
-    order
+    order,
   );
 }
 

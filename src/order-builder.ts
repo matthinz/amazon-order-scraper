@@ -106,7 +106,7 @@ export class OrderBuilder {
 
     function ensure<T extends {}, TKey extends keyof T>(
       obj: T,
-      key: TKey
+      key: TKey,
     ): NonNullable<T[TKey]> {
       const value = obj[key];
       if (value == null) {
@@ -152,7 +152,7 @@ export class OrderBuilder {
   setDate(
     yearOrDateOrMatchArray: number | string | RegExpMatchArray,
     month?: number,
-    day?: number
+    day?: number,
   ): this {
     this.#order.date = this.normalizeDate(yearOrDateOrMatchArray, month, day);
     return this;
@@ -183,7 +183,7 @@ export class OrderBuilder {
 
     if (item.priceCents != null && item.priceCents !== priceCents) {
       throw new Error(
-        `Price already set (was ${item.priceCents}, trying to set to ${priceCents}`
+        `Price already set (was ${item.priceCents}, trying to set to ${priceCents}`,
       );
     }
 
@@ -227,12 +227,12 @@ export class OrderBuilder {
   setPaymentDate(
     yearOrDateOrMatchArray: number | string | RegExpMatchArray,
     month?: number,
-    day?: number
+    day?: number,
   ): this {
     this.lastPayment.date = this.normalizeDate(
       yearOrDateOrMatchArray,
       month,
-      day
+      day,
     );
     return this;
   }
@@ -271,12 +271,12 @@ export class OrderBuilder {
   setShippingDate(
     yearOrDateOrMatchArray: number | string | RegExpMatchArray,
     month?: number,
-    day?: number
+    day?: number,
   ): this {
     this.ensureShipment().date = this.normalizeDate(
       yearOrDateOrMatchArray,
       month,
-      day
+      day,
     );
     return this;
   }
@@ -385,7 +385,7 @@ export class OrderBuilder {
   private normalizeDate(
     yearOrDateOrMatchArray: number | string | RegExpMatchArray,
     month?: number | string,
-    day?: number | string
+    day?: number | string,
   ) {
     if (typeof month === "string" && MONTHS.includes(month)) {
       month = MONTHS.indexOf(month) + 1;
@@ -418,7 +418,7 @@ export class OrderBuilder {
 
     if (groups == null) {
       throw new Error(
-        "Invalid match array for date (needs year, month and day groups)"
+        "Invalid match array for date (needs year, month and day groups)",
       );
     }
 
@@ -428,7 +428,7 @@ export class OrderBuilder {
   private parseAmount(value: string | number): [string, number] {
     const amount = typeof value === "number" ? value.toFixed(2) : value;
     const amountCents = Math.round(
-      parseFloat(amount.replace(/[^0-9\.]/g, "")) * 100
+      parseFloat(amount.replace(/[^0-9\.]/g, "")) * 100,
     );
     return [amount, amountCents];
   }

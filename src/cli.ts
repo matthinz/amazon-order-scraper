@@ -1,18 +1,18 @@
-import { parseArgs } from "node:util";
-import readline from "node:readline/promises";
 import path from "node:path";
-import { scrape } from "./subcommands/scrape.ts";
-import { years } from "./subcommands/years.ts";
+import readline from "node:readline/promises";
+import { parseArgs } from "node:util";
+import { DataStore } from "./datastore.ts";
 import { orderHTML } from "./subcommands/order-html.ts";
 import { orders } from "./subcommands/orders.ts";
+import { scrape } from "./subcommands/scrape.ts";
 import { tokens } from "./subcommands/tokens.ts";
+import { years } from "./subcommands/years.ts";
 import type { SubcommandOptions } from "./types.ts";
-import { DataStore } from "./datastore.ts";
 
 const DATA_DIR = path.join(
   process.env["HOME"] ?? ".",
   ".cache",
-  "amazon-order-scraper"
+  "amazon-order-scraper",
 );
 
 const DEFAULT_PROFILE = "default";
@@ -32,9 +32,9 @@ const DEFAULT_SUBCOMMAND = "orders";
 
 export async function run(
   args: string[],
-  subcommands: SubcommandSet = SUBCOMMANDS
+  subcommands: SubcommandSet = SUBCOMMANDS,
 ): Promise<void> {
-  const { profile, interactionAllowed, subcommand, remainingArgs } =
+  const { profile, interactionAllowed, subcommand, remainingArgs, ...rest } =
     parseProgramOptions(args, subcommands, subcommands[DEFAULT_SUBCOMMAND]);
 
   const rl = readline.createInterface({
@@ -43,6 +43,7 @@ export async function run(
   });
 
   const subcommandOptions: SubcommandOptions = {
+    ...rest,
     args: remainingArgs,
     datastore: new DataStore(path.join(DATA_DIR, "orders.db")),
     dataDir: DATA_DIR,
@@ -63,12 +64,12 @@ type ProgramOptions = {
   interactionAllowed: boolean;
   subcommand: Subcommand;
   remainingArgs: string[];
-};
+} & Pick<SubcommandOptions, "debug" | "info" | "warn">;
 
 function parseProgramOptions(
   args: string[],
   subcommands: SubcommandSet,
-  defaultSubcommand: Subcommand
+  defaultSubcommand: Subcommand,
 ): ProgramOptions {
   const { tokens } = parseArgs({
     args,
@@ -81,6 +82,10 @@ function parseProgramOptions(
   let profile: string | undefined;
   let interactionAllowed = true;
   let remainingArgs: string[] = [];
+
+  let info: SubcommandOptions["info"] = console.error.bind(console);
+  let debug: SubcommandOptions["debug"] = () => {};
+  let warn: SubcommandOptions["warn"] = console.error.bind(console);
 
   tokens.forEach((token) => {
     if (token.kind === "positional") {
@@ -115,17 +120,25 @@ function parseProgramOptions(
       return;
     }
 
+    if (token.name === "debug") {
+      debug = console.error.bind(console);
+      return;
+    }
+
     if (token.inlineValue) {
-      remainingArgs.push(`--${token.name}="${token.value}"`);
+      remainingArgs.push(`--${token.name}=${token.value}`);
     } else {
       remainingArgs.push(`--${token.name}`);
     }
   });
 
   return {
-    profile: profile ?? DEFAULT_PROFILE,
+    debug,
+    info,
     interactionAllowed,
-    subcommand: subcommand ?? defaultSubcommand,
+    profile: profile ?? DEFAULT_PROFILE,
     remainingArgs,
+    subcommand: subcommand ?? defaultSubcommand,
+    warn,
   };
 }

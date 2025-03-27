@@ -19,6 +19,6 @@ export async function tokens(options: SubcommandOptions) {
         const tokens = getContentChunks(html);
         tokens.forEach((token) => console.log(token));
       }),
-    Promise.resolve()
+    Promise.resolve(),
   );
 }

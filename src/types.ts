@@ -3,6 +3,9 @@ import { DataStore } from "./datastore.ts";
 
 export type SubcommandOptions = {
   args: string[];
+  debug: (...args: unknown[]) => void;
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
   datastore: DataStore;
   dataDir: string;
   profile: string;

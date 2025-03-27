@@ -12,23 +12,30 @@ export class DataStore {
     this.#filename = filename;
   }
 
-  async completeYears(): Promise<number[]> {
+  async checkCache(key: string): Promise<string | undefined> {
     const db = await this.initDB();
-    const statement = db.prepare("SELECT year FROM years WHERE complete = 1");
-    return statement.all().map((row: any) => row.year);
+    const statement = db.prepare("SELECT value FROM cache WHERE key = ?");
+    const row = statement.get(key) as any;
+
+    if (!row) {
+      return;
+    }
+
+    return row.value ?? "";
   }
 
-  async countOrdersForYear(year: number): Promise<number> {
+  async updateCache(key: string, value: string): Promise<void> {
     const db = await this.initDB();
-    const statement = db.prepare("SELECT COUNT(*) FROM orders WHERE year = ?");
-    const row = statement.get(year) as any;
-    return row["COUNT(*)"];
+    const statement = db.prepare(
+      "INSERT OR REPLACE INTO cache (key, value) VALUES (?, ?)",
+    );
+    statement.run(key, value);
   }
 
   async getOrderInvoiceHTML(orderID: string): Promise<string | undefined> {
     const db = await this.initDB();
     const statement = db.prepare(
-      "SELECT invoice_html FROM orders WHERE order_id = ?"
+      "SELECT invoice_html FROM orders WHERE order_id = ?",
     );
     const row = statement.get(orderID) as any;
     return row?.invoice_html;
@@ -42,7 +49,7 @@ export class DataStore {
         return parseInvoice(row.invoice_html);
       } catch (err) {
         throw new Error(
-          `Error parsing invoice ${row.order_id}: ${err.message}`
+          `Error parsing invoice ${row.order_id}: ${err.message}`,
         );
       }
     });
@@ -51,7 +58,7 @@ export class DataStore {
   async markYearComplete(year: number): Promise<void> {
     const db = await this.initDB();
     const statement = db.prepare(
-      "INSERT OR REPLACE INTO years (year, complete) VALUES (?, 1)"
+      "INSERT OR REPLACE INTO years (year, complete) VALUES (?, 1)",
     );
     statement.run(year);
   }
@@ -60,20 +67,13 @@ export class DataStore {
     return !!(await this.getOrderInvoiceHTML(orderID));
   }
 
-  async yearScraped(year: number): Promise<boolean> {
-    const db = await this.initDB();
-    const statement = db.prepare("SELECT complete FROM years WHERE year = ?");
-    const row = statement.get(year) as any;
-    return row?.complete === 1;
-  }
-
   async saveOrderInvoiceHTML(
     orderID: string,
-    invoiceHTML: string
+    invoiceHTML: string,
   ): Promise<void> {
     const db = await this.initDB();
     const statement = db.prepare(
-      "INSERT INTO orders (order_id, date, year, invoice_html) VALUES (?, ?, ?, ?)"
+      "INSERT INTO orders (order_id, date, year, invoice_html) VALUES (?, ?, ?, ?)",
     );
 
     let invoice: Order;
@@ -89,7 +89,7 @@ export class DataStore {
       orderID,
       invoice.date ?? null,
       invoice.date?.split("-")[0] ?? null,
-      invoiceHTML
+      invoiceHTML,
     );
   }
 
@@ -104,20 +104,23 @@ export class DataStore {
       const db = new sqlite.DatabaseSync(dbPath);
 
       db.exec(`
-            CREATE TABLE IF NOT EXISTS orders (
-            order_id TEXT PRIMARY KEY,
-            date TEXT NOT NULL,
-            year INTEGER NOT NULL,
-            invoice_html TEXT
-            );
-        `);
+        CREATE TABLE IF NOT EXISTS orders (
+          order_id TEXT PRIMARY KEY,
+          date TEXT NOT NULL,
+          user TEXT NOT NULL,
+          invoice_html TEXT,
+          complete INTEGER NOT NULL DEFAULT 0,
+          last_scraped TEXT NOT NULL
+        );
+      `);
 
       db.exec(`
-            CREATE TABLE IF NOT EXISTS years (
-            year INTEGER PRIMARY KEY,
-            complete INTEGER NOT NULL DEFAULT 0
-            );
-        `);
+        CREATE TABLE IF NOT EXISTS cache (
+          key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          PRIMARY KEY (key, value)
+        );
+      `);
 
       resolve(db);
     });

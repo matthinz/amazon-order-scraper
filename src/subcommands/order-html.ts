@@ -7,6 +7,6 @@ export async function orderHTML(options: SubcommandOptions): Promise<void> {
         const html = await options.datastore.getOrderInvoiceHTML(orderID);
         console.log(html);
       }),
-    Promise.resolve()
+    Promise.resolve(),
   );
 }

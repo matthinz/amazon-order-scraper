@@ -11,7 +11,7 @@ export async function years(options: SubcommandOptions): Promise<void> {
         result.push(`* ${year} (${orderCount} orders)`);
         return result;
       }),
-    Promise.resolve([])
+    Promise.resolve([]),
   );
 
   console.log(`# Complete years\n\n${listItems.join("\n")}`);
