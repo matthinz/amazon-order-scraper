@@ -2,10 +2,14 @@
   "name": "amazon-order-scraper",
   "type": "module",
   "version": "0.0.1",
-  "main": "src/main.ts",
+  "bin": {
+    "amazon-order-scraper": "./dist/main.js"
+  },
+  "engines": {
+    "node": ">=23.9.0"
+  },
   "license": "MIT",
   "dependencies": {
-    "cheerio": "^1.0.0",
     "jsdom": "^26.0.0",
     "parse5": "^7.2.1",
     "playwright": "^1.51.1",

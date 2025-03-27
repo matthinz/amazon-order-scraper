@@ -1,0 +1,15 @@
+*.test.js
+*.test.js.map
+
+*.tgz
+
+/.vscode
+/src
+/fixtures
+
+.editorconfig
+.nvmrc
+.prettierrc.json
+Makefile
+MH-*
+tsconfig.json

@@ -1,7 +1,18 @@
-.PHONY: test typecheck
+.PHONY: build clean pack publish test typecheck
 
-test: typecheck
-	node --test 'src/**/*.test.ts'
+build: node_modules
+	rm -rf dist
+	yarn tsc
+
+clean:
+	rm -rf dist
+
+pack: build test
+	yarn pack
+	tar tzf *.tgz
+
+test: build
+	node --test 'dist/**/*.test.js'
 
 typecheck: node_modules
 	yarn tsc --noEmit

@@ -250,7 +250,7 @@ describe("Invoice from 2005", async () => {
       "fixtures/invoice-2005.html",
       "utf-8",
     );
-    order = parseInvoice(fixtureHTML, console.error);
+    order = parseInvoice(fixtureHTML);
   });
 
   describe("#date", () => {
@@ -543,7 +543,7 @@ describe("Invoice from 2025", async () => {
       "fixtures/invoice-2025.html",
       "utf-8",
     );
-    order = parseInvoice(fixtureHTML, console.error);
+    order = parseInvoice(fixtureHTML);
   });
 
   describe("#date", () => {

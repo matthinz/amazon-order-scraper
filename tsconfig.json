@@ -1,6 +1,10 @@
 {
   "include": ["src/**/*.ts"],
   "compilerOptions": {
+    "outDir": "dist",
+    "sourceMap": true,
+
+    // Node.js erasable syntax support
     "target": "esnext",
     "module": "nodenext",
     "rewriteRelativeImportExtensions": true,

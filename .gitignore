@@ -7,3 +7,5 @@ node_modules
 invoice-with-error.html
 
 /fixtures
+
+*.tgz
