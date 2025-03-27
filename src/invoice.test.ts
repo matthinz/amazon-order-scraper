@@ -519,6 +519,92 @@ describe("Invoice from 2012 (#2)", async () => {
   });
 });
 
+describe("Invoice from 2013 (for registry)", async () => {
+  let order: Order;
+
+  before(async () => {
+    const fixtureHTML = await fs.readFile(
+      "fixtures/invoice-2013.html",
+      "utf-8",
+    );
+    order = parseInvoice(fixtureHTML);
+  });
+
+  describe("#date", () => {
+    it("works", () => {
+      assert.strictEqual(order?.date, "2013-05-13");
+    });
+  });
+
+  describe("#id", () => {
+    it("works", () => {
+      assert.strictEqual(order.id, "105-0883344-9303847");
+    });
+  });
+
+  describe("#placedBy", () => {
+    it("works", () => {
+      assert.strictEqual(order.placedBy, undefined);
+    });
+  });
+
+  describe("#shipments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order?.shipments, [
+        {
+          date: "2013-05-14",
+          items: [
+            {
+              name: "BBP Bags - Hybrid Hauler Medium Olive",
+              price: "$49.99",
+              priceCents: 4999,
+              quantity: 1,
+            },
+          ],
+          shippingAddress: {
+            name: "Joey Joe Joe Junior Shabbadoo",
+            address: "",
+            city: "Anytown",
+            state: "WA",
+            zip: "",
+            country: "",
+          },
+        },
+      ]);
+    });
+  });
+
+  describe("#payments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order.payments, []);
+    });
+  });
+
+  describe("#shippingCost", () => {
+    it("works", () => {
+      assert.strictEqual(order.shippingCost, "$9.62");
+    });
+  });
+
+  describe("#subtotal", () => {
+    it("works", () => {
+      assert.strictEqual(order.subtotal, "$49.99");
+    });
+  });
+
+  describe("#tax", () => {
+    it("works", () => {
+      assert.strictEqual(order.tax, "$0.00");
+    });
+  });
+
+  describe("#total", () => {
+    it("works", () => {
+      assert.strictEqual(order.total, "$59.61");
+    });
+  });
+});
+
 describe("Invoice from 2017 (with gift card)", async () => {
   let order: Order;
 

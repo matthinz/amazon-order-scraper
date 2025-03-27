@@ -1,6 +1,6 @@
 import { OrderBuilder } from "./order-builder.js";
 import { getContentChunks } from "./parsing.js";
-const CITY_STATE_ZIP_REGEX = /^(?<city>.+), (?<state>[A-Z]+) (?<zip>(\d{5})(-\d{4})?)$/;
+const CITY_STATE_ZIP_REGEX = /^(?<city>.+), (?<state>[A-Za-z]+) (?<zip>(\d{5})(-\d{4})?)$/;
 const NOOP = () => { };
 export function parseInvoice(html, log = NOOP) {
     const builder = new OrderBuilder();
@@ -98,6 +98,14 @@ function shipping(token, order) {
         {
             matches: /Shipping Speed: (.+)/,
             handler: () => unknown,
+        },
+        {
+            equals: "(Full address hidden for privacy.)",
+            handler: () => {
+                // Gift registry orders
+                order.fullShippingAddressNotAvailable();
+                return unknown;
+            },
         },
         (token) => {
             order.setNextShippingAddressField(token);

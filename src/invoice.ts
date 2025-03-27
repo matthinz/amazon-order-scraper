@@ -157,6 +157,15 @@ function shipping(token: string, order: OrderBuilder) {
         matches: /Shipping Speed: (.+)/,
         handler: () => unknown,
       },
+      {
+        equals: "(Full address hidden for privacy.)",
+        handler: () => {
+          // Gift registry orders
+          order.fullShippingAddressNotAvailable();
+
+          return unknown;
+        },
+      },
       (token) => {
         order.setNextShippingAddressField(token);
       },

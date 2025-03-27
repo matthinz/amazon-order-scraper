@@ -141,6 +141,27 @@ export class OrderBuilder {
     return this;
   }
 
+  fullShippingAddressNotAvailable(): this {
+    const addr = this.ensureShipment().shippingAddress;
+
+    addr.name ??= "";
+    addr.address ??= "";
+    addr.city ??= "";
+    addr.state ??= "";
+    addr.zip ??= "";
+    addr.country ??= "";
+
+    const parts = addr.address.split(",").map((s) => s.trim());
+    if (parts.length > 1) {
+      addr.address = "";
+      addr.state = parts.pop();
+      addr.city = parts.join(", ");
+      addr;
+    }
+
+    return this;
+  }
+
   setCurrency(currency: string): this {
     if (this.#order.currency != null && this.#order.currency !== currency) {
       throw new Error("Currency already set");
