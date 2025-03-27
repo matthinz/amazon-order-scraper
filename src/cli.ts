@@ -6,7 +6,6 @@ import { orderHTML } from "./subcommands/order-html.ts";
 import { orders } from "./subcommands/orders.ts";
 import { scrape } from "./subcommands/scrape.ts";
 import { tokens } from "./subcommands/tokens.ts";
-import { years } from "./subcommands/years.ts";
 import type { SubcommandOptions } from "./types.ts";
 
 const DATA_DIR = path.join(
@@ -25,7 +24,6 @@ const SUBCOMMANDS: SubcommandSet = {
   orders,
   scrape,
   tokens,
-  years,
 };
 
 const DEFAULT_SUBCOMMAND = "orders";

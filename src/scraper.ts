@@ -15,6 +15,7 @@ export type ScraperOptions = {
   root: string;
   datastore: DataStore;
   dataDir: string;
+  headless: boolean;
   minDelay: number;
   maxDelay: number;
   profile?: string;
@@ -46,6 +47,8 @@ const INVOICE_LINK_SELECTOR =
 
 const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   root: "https://www.amazon.com",
+
+  headless: true,
   minDelay: 500,
   maxDelay: 1500,
   profile: "default",
@@ -493,7 +496,7 @@ export class Scraper {
     this.#contextPromise =
       this.#contextPromise ??
       chromium.launchPersistentContext(this.profileDir, {
-        headless: false,
+        headless: this.#options.headless,
         executablePath:
           "/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome",
       });
