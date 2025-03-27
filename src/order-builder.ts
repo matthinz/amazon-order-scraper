@@ -1,3 +1,4 @@
+import { formatMonetaryAmount, parseMonetaryAmount } from "./money.ts";
 import type {
   Order,
   OrderItem,
@@ -40,6 +41,8 @@ export class OrderBuilder {
   }
 
   build(): Order {
+    const { total, totalCents } = this.calculateTotal();
+
     return {
       id: ensure(this.#order, "id"),
       currency: ensure(this.#order, "currency"),
@@ -100,8 +103,8 @@ export class OrderBuilder {
       subtotalCents: ensure(this.#order, "subtotalCents"),
       tax: ensure(this.#order, "tax"),
       taxCents: ensure(this.#order, "taxCents"),
-      total: ensure(this.#order, "total"),
-      totalCents: ensure(this.#order, "totalCents"),
+      total,
+      totalCents,
     };
 
     function ensure<T extends {}, TKey extends keyof T>(
@@ -360,6 +363,29 @@ export class OrderBuilder {
 
   private get lastPayment(): Partial<Payment> {
     return this.#payments[this.#payments.length - 1];
+  }
+
+  private calculateTotal(): { total: string; totalCents: number } {
+    let totalCents = this.#order.totalCents;
+
+    if (totalCents == null) {
+      throw new Error("Total not set");
+    }
+
+    if (this.#shouldAdjustTotalBasedOnGiftCards) {
+      const giftCardTotalCents = this.#payments
+        .filter((p) => p.type === "gift_card")
+        .reduce((sum, p) => sum + p.amountCents!, 0);
+
+      totalCents += giftCardTotalCents;
+    }
+
+    const { currency } = parseMonetaryAmount(this.#order.total!);
+
+    return {
+      totalCents,
+      total: formatMonetaryAmount({ currency, cents: totalCents }),
+    };
   }
 
   private ensureShipment(): PartialShipment {

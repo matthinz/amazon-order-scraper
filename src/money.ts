@@ -26,7 +26,9 @@ export function parseMonetaryAmount(amount: string | number) {
   };
 }
 
-export function formatMonetaryAmount(amount: string | number | MonetaryAmount) {
+export function formatMonetaryAmount(
+  amount: string | number | Pick<MonetaryAmount, "currency" | "cents">,
+) {
   const { currency, cents } =
     typeof amount === "object" ? amount : parseMonetaryAmount(amount);
 
