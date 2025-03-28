@@ -19,6 +19,7 @@ export class DataStore {
     async updateCache(key, value) {
         const db = await this.initDB();
         const statement = db.prepare("INSERT OR REPLACE INTO cache (key, value) VALUES (?, ?)");
+        console.error(key, value);
         statement.run(key, value);
     }
     async getOrders() {

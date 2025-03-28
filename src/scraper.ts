@@ -19,10 +19,12 @@ export type ScraperOptions = {
   minDelay: number;
   maxDelay: number;
   user?: string;
+  years?: number[];
 
   onCacheHit: (key: string, value: string) => void;
   onCacheMiss: (key: string, description: string) => void;
   debug: (...args: unknown[]) => void;
+  verbose: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
 
   onYearStarted: (year: number) => void;
@@ -30,7 +32,7 @@ export type ScraperOptions = {
   onOrderScraped: (order: Order) => void;
 };
 
-type GetPageContentOptions = {
+type ParsePageContentOptions = {
   url: URL;
   checkCache: (key: string) => Promise<string | undefined>;
   updateCache: (key: string, value: string) => Promise<void>;
@@ -52,6 +54,7 @@ const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   minDelay: 500,
   maxDelay: 1500,
   user: "default",
+  years: undefined,
 
   onCacheHit: () => {},
   onCacheMiss: () => {},
@@ -61,13 +64,20 @@ const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   onOrderScraped: () => {},
 
   debug: () => {},
+  verbose: () => {},
   warn: () => {},
 };
 
 export class SignInRequiredError extends Error {
-  constructor() {
-    super("Sign in required.");
+  #page: Page | undefined;
+  constructor(message: string, page?: Page) {
+    super(message);
+    this.#page = page;
     this.name = this.constructor.name;
+  }
+
+  get page() {
+    return this.#page;
   }
 }
 
@@ -123,6 +133,10 @@ export class Scraper {
   }
 
   public async getYears(page?: Page): Promise<number[]> {
+    if (this.#options.years != null) {
+      return this.#options.years;
+    }
+
     const checkCache = async (key: string) => {
       const content = await this.datastore.checkCache(key);
 
@@ -163,20 +177,22 @@ export class Scraper {
       return content;
     };
 
-    const content = await this.getPageContent({
-      url: new URL(ORDERS_URL, this.#options.root),
-      checkCache,
-      updateCache: this.datastore.updateCache.bind(this.datastore),
-      page,
-    });
+    return await this.parsePageContent(
+      {
+        url: new URL(ORDERS_URL, this.#options.root),
+        checkCache,
+        updateCache: this.datastore.updateCache.bind(this.datastore),
+        page,
+      },
+      async (url, document, rawContent, page) => {
+        const years = this.scrapeYears(rawContent);
+        if (years == null) {
+          throw new SignInRequiredError("Error parsing year page", page);
+        }
 
-    const years = this.scrapeYears(content);
-
-    if (years == null) {
-      throw new SignInRequiredError();
-    }
-
-    return years;
+        return years;
+      },
+    );
   }
 
   async scrape(page?: Page): Promise<void> {
@@ -211,6 +227,8 @@ export class Scraper {
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
+    this.verbose(`Navigating to ${url.toString()}`);
+
     await page.goto(url.toString());
     this.#lastNavigationAt = new Date();
   }
@@ -219,28 +237,82 @@ export class Scraper {
     return ["v1", "user", this.#options.user, "url", url.toString()].join(":");
   }
 
-  protected async getPageContent({
-    url,
-    checkCache,
-    updateCache,
-    page,
-  }: GetPageContentOptions): Promise<string> {
+  private async parsePageContent<T>(
+    { url, checkCache, updateCache, page }: ParsePageContentOptions,
+    handler: (
+      url: URL,
+      document: Document,
+      rawContent: string,
+      page?: Page,
+    ) => Promise<T | undefined>,
+  ): Promise<T | undefined> {
     const cacheKey = this.cacheKey(url);
-    const cachedContent = await checkCache(cacheKey);
+    let content: string | undefined = await checkCache(cacheKey);
+    let actualURL: URL = url;
 
-    if (cachedContent) {
-      return cachedContent;
+    const doParse = async (
+      url: URL,
+      rawContent: string,
+      shouldUpdateCache: boolean,
+      page?: Page,
+    ): Promise<T | undefined> => {
+      const { document } = new JSDOM(rawContent).window;
+
+      let result: T | undefined;
+
+      try {
+        result = await handler(actualURL, document, rawContent, page);
+      } catch (err) {
+        if (shouldUpdateCache) {
+          this.verbose(
+            `Error parsing page content (not caching): ${err.message}`,
+          );
+        }
+        throw err;
+      }
+
+      if (!shouldUpdateCache) {
+        return result;
+      }
+
+      if (url.toString() === actualURL.toString()) {
+        await updateCache(cacheKey, rawContent);
+      } else {
+        this.warn(
+          `URL changed from ${url.toString()} to ${url.toString()}, not caching contents`,
+        );
+      }
+
+      return result;
+    };
+
+    let cachedContent = content;
+
+    while (true) {
+      if (cachedContent != null) {
+        try {
+          return await doParse(url, cachedContent, false);
+        } catch (err) {
+          this.warn(
+            `Error parsing cached content (falling back to browser): ${err.message}`,
+          );
+          cachedContent = undefined;
+        }
+      } else {
+        return this.withBrowser(
+          url,
+          async (page) => {
+            return doParse(
+              new URL(page.url()),
+              await page.content(),
+              true,
+              page,
+            );
+          },
+          page,
+        );
+      }
     }
-
-    return await this.withBrowser(
-      url,
-      async (page) => {
-        const content = await page.content();
-        await updateCache(cacheKey, content);
-        return content;
-      },
-      page,
-    );
   }
 
   protected async scrapeOrder(
@@ -273,6 +345,8 @@ export class Scraper {
         return;
       }
 
+      this.onCacheHit(key, value);
+
       return value;
     };
 
@@ -282,24 +356,31 @@ export class Scraper {
       } catch (err) {
         throw new InvoiceParsingFailedError(err.message, value);
       }
+      this.verbose(`Updating cache for ${key}`);
       await this.datastore.updateCache(key, value);
     };
 
-    const html = await this.getPageContent({
-      url: invoiceURL,
-      checkCache,
-      updateCache,
-    });
-
-    let order: Order;
-
-    try {
-      order = parseInvoice(html, this.debug);
-    } catch (err) {
-      throw new SignInRequiredError();
-    }
-
-    this.datastore.saveOrder(order, this.#options.user, invoiceURL, html);
+    const order = await this.parsePageContent(
+      {
+        url: invoiceURL,
+        checkCache,
+        updateCache,
+      },
+      async (url, _document, rawContent, page) => {
+        try {
+          const order = parseInvoice(rawContent, this.debug);
+          await this.datastore.saveOrder(
+            order,
+            this.#options.user,
+            url,
+            rawContent,
+          );
+          return order;
+        } catch (err) {
+          throw new SignInRequiredError("Error scraping order page", page);
+        }
+      },
+    );
 
     this.onOrderScraped(order);
 
@@ -352,10 +433,16 @@ export class Scraper {
       // been scraped, we can proceed to use the cache. Otherwise, we
       // need to re-scrape the entire year
 
-      const invoiceURLs = this.scrapeInvoiceURLsFromPage(value);
-      if (await this.allInvoiceURLsCached(invoiceURLs)) {
-        this.onCacheHit(key, "All invoices are cached, using cache");
-        return value;
+      try {
+        const invoiceURLs = findInvoiceURLs(new JSDOM(value).window.document);
+        if (await this.allInvoiceURLsCached(invoiceURLs)) {
+          this.onCacheHit(key, "All invoices are cached, using cache");
+          return value;
+        }
+      } catch (err) {
+        if (!(err instanceof SignInRequiredError)) {
+          throw err;
+        }
       }
 
       this.onCacheMiss(
@@ -364,24 +451,66 @@ export class Scraper {
       );
     };
 
+    const updateCache = async (key, value) => {
+      this.verbose(`Updating cache for ${key}`);
+      await this.datastore.updateCache(key, value);
+    };
+
+    const findInvoiceURLs = (document: Document) => {
+      return Array.from(
+        document.querySelectorAll<HTMLAnchorElement>(INVOICE_LINK_SELECTOR),
+      )
+        .map((a) => a.href)
+        .map((url) => new URL(url, this.#options.root));
+    };
+
+    const NEXT_PAGE_LINK_SELECTOR = "li.a-last a";
+
     const allOrders: Order[] = [];
 
     this.onYearStarted(year);
 
     while (url != null) {
       pageIndex++;
-      this.debug(`Scraping page ${pageIndex} of orders for year ${year}`);
+      this.verbose(`Scraping page ${pageIndex} of orders for year ${year}`);
 
-      const content = await this.getPageContent({
-        url,
-        checkCache,
-        updateCache: this.datastore.updateCache.bind(this.datastore),
-        page,
-      });
+      const [invoiceURLs, nextPageURL] = await this.parsePageContent(
+        {
+          url,
+          checkCache,
+          updateCache,
+          page,
+        },
+        async (url, document, _, page) => {
+          const invoiceURLs = findInvoiceURLs(document);
 
-      const { orders, nextPageURL } = await this.scrapeOrdersFromPage(content);
+          if (invoiceURLs.length === 0) {
+            throw new SignInRequiredError(
+              `No invoices found on ${url.toString()}`,
+              page,
+            );
+          }
 
-      allOrders.push(...orders);
+          let nextPageURL = document.querySelector<HTMLAnchorElement>(
+            NEXT_PAGE_LINK_SELECTOR,
+          )?.href;
+
+          return [
+            invoiceURLs,
+            nextPageURL == null ? undefined : new URL(nextPageURL, url),
+          ];
+        },
+      );
+
+      await invoiceURLs.reduce<Promise<void>>(
+        (promise, invoiceURL) =>
+          promise.then(async () => {
+            const { order } = await this.scrapeOrder(invoiceURL);
+            allOrders.push(order);
+          }),
+        Promise.resolve(),
+      );
+
       url = nextPageURL;
     }
 
@@ -390,68 +519,11 @@ export class Scraper {
     return allOrders;
   }
 
-  private async scrapeOrdersFromPage(html: string): Promise<{
-    orders: Order[];
-    nextPageURL: URL | undefined;
-    anyWereCached: boolean;
-  }> {
-    const NEXT_PAGE_LINK_SELECTOR = "li.a-last a";
-
-    const { document } = new JSDOM(html).window;
-
-    const invoiceURLs = Array.from(
-      document.querySelectorAll<HTMLAnchorElement>(INVOICE_LINK_SELECTOR),
-    )
-      .map((a) => a.href)
-      .map((url) => {
-        const parsedURL = new URL(url, this.#options.root);
-
-        const m = ORDER_ID_REGEX.exec(
-          parsedURL.searchParams.get("orderID") ?? "",
-        );
-
-        if (!m) {
-          return;
-        }
-
-        return parsedURL;
-      })
-      .filter(Boolean) as URL[];
-
-    let anyWereCached = false;
-
-    const orders = await invoiceURLs.reduce<Promise<Order[]>>(
-      async (promise, invoiceURL) =>
-        promise.then(async (result) => {
-          const { order, wasCached } = await this.scrapeOrder(invoiceURL);
-          anyWereCached = anyWereCached || wasCached;
-          result.push(order);
-          return result;
-        }),
-      Promise.resolve([]),
-    );
-
-    const href = document.querySelector<HTMLAnchorElement>(
-      NEXT_PAGE_LINK_SELECTOR,
-    )?.href;
-
-    const nextPageURL = href ? new URL(href, this.#options.root) : undefined;
-
-    return { orders, nextPageURL, anyWereCached };
-  }
-
-  protected scrapeInvoiceURLsFromPage(html: string): URL[] {
-    const { document } = new JSDOM(html).window;
-
-    return Array.from(
-      document.querySelectorAll<HTMLAnchorElement>(INVOICE_LINK_SELECTOR),
-    )
-      .map((a) => a.href)
-      .map((url) => new URL(url, this.#options.root));
-  }
-
-  protected scrapeYears(html: string): number[] | undefined {
-    const { document } = new JSDOM(html).window;
+  protected scrapeYears(document: Document | string): number[] | undefined {
+    document =
+      typeof document === "string"
+        ? new JSDOM(document).window.document
+        : document;
 
     const select = document.querySelector<HTMLSelectElement>(
       'select[name="timeFilter"]',
@@ -466,7 +538,7 @@ export class Scraper {
       .filter((v) => /^year-/.test(v))
       .map((v) => parseInt(v.replace(/^year-/, ""), 10));
 
-    years.sort();
+    years.sort((a, b) => b - a);
 
     return years;
   }
@@ -495,8 +567,8 @@ export class Scraper {
     } catch (err) {
       // If the err is being used to return a reference to the page,
       // don't close it here
-      if (shouldCleanUpPage) {
-        shouldCleanUpPage = !("page" in err) || err.page !== pageToUse;
+      if ("page" in err && err.page === pageToUse) {
+        shouldCleanUpPage = false;
       }
 
       throw err;
@@ -541,6 +613,10 @@ export class Scraper {
 
   get onYearComplete() {
     return this.#options.onYearComplete;
+  }
+
+  get verbose() {
+    return this.#options.verbose;
   }
 
   get warn() {

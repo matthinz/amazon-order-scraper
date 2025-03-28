@@ -5,6 +5,7 @@ export type SubcommandOptions = {
   args: string[];
   debug: (...args: unknown[]) => void;
   info: (...args: unknown[]) => void;
+  verbose: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
   datastore: DataStore;
   dataDir: string;

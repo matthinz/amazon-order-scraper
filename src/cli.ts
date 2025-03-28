@@ -58,7 +58,7 @@ type ProgramOptions = {
   interactionAllowed: boolean;
   subcommand: Subcommand;
   remainingArgs: string[];
-} & Pick<SubcommandOptions, "debug" | "info" | "warn">;
+} & Pick<SubcommandOptions, "debug" | "info" | "warn" | "verbose">;
 
 function parseProgramOptions(
   args: string[],
@@ -79,6 +79,7 @@ function parseProgramOptions(
 
   let info: SubcommandOptions["info"] = console.error.bind(console);
   let debug: SubcommandOptions["debug"] = () => {};
+  let verbose: SubcommandOptions["verbose"] = () => {};
   let warn: SubcommandOptions["warn"] = console.error.bind(console);
 
   tokens.forEach((token) => {
@@ -114,8 +115,13 @@ function parseProgramOptions(
       return;
     }
 
+    if (token.name === "verbose") {
+      verbose = console.error.bind(console);
+      return;
+    }
+
     if (token.name === "debug") {
-      debug = console.error.bind(console);
+      debug = verbose = console.error.bind(console);
       return;
     }
 
@@ -133,6 +139,7 @@ function parseProgramOptions(
     user: user ?? DEFAULT_USER,
     remainingArgs,
     subcommand: subcommand ?? defaultSubcommand,
+    verbose,
     warn,
   };
 }

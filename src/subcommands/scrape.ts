@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline/promises";
+import { parseArgs } from "node:util";
 import {
   InvoiceParsingFailedError,
   Scraper,
@@ -27,15 +28,23 @@ type ScrapeAttemptResult =
 export async function scrape(options: SubcommandOptions): Promise<void> {
   let scraper: Scraper | undefined;
   let headless = true;
+  const scrapedYears: number[] = [];
+
+  const { desiredYears } = parseOptions(options.args);
 
   try {
     while (true) {
       scraper =
         scraper ??
-        createScraper({
-          ...options,
-          headless,
-        });
+        createScraper(
+          {
+            ...options,
+            years: desiredYears,
+            headless,
+          },
+          desiredYears,
+          scrapedYears,
+        );
 
       const result = await attemptScrape(scraper);
 
@@ -93,6 +102,7 @@ async function attemptScrape(scraper: Scraper): Promise<ScrapeAttemptResult> {
     return { complete: true };
   } catch (err) {
     if (err instanceof SignInRequiredError) {
+      console.error(err.message);
       return { complete: false, needSignIn: true };
     }
 
@@ -110,20 +120,33 @@ async function attemptScrape(scraper: Scraper): Promise<ScrapeAttemptResult> {
 
 function createScraper(
   options: SubcommandOptions & Partial<ScraperOptions>,
+  desiredYears: number[] | undefined,
+  scrapedYears: number[],
 ): Scraper {
   return new Scraper({
     ...options,
     onCacheHit(key) {
-      options.debug(`Cache hit for ${key}`);
+      options.verbose(`Cache hit for ${key}`);
     },
     onCacheMiss(key, reason) {
-      options.debug(`Cache miss for ${key}: ${reason}`);
+      options.warn(`Cache miss for ${key}: ${reason}`);
     },
     onYearStarted(year) {
+      if (desiredYears != null && !desiredYears.includes(year)) {
+        options.verbose(`Skipping orders for ${year}`);
+        return false;
+      }
+
+      if (scrapedYears.includes(year)) {
+        options.verbose(`Already scraped orders for ${year}`);
+        return false;
+      }
+
       options.info(`Scraping orders for ${year}`);
     },
     onYearComplete(year, orders) {
       options.info(`Scraped ${orders.length} order(s) for ${year}`);
+      scrapedYears.push(year);
     },
     onOrderScraped(order) {
       options.info(`Scraped order ${order.id}`);
@@ -144,4 +167,33 @@ async function promptForSignIn(rl: readline.Interface): Promise<void> {
   );
 
   await rl.question("");
+}
+
+function parseOptions(args: string[]): {
+  desiredYears: number[] | undefined;
+} {
+  const { values } = parseArgs({
+    allowPositionals: false,
+    args,
+    options: {
+      year: {
+        type: "string",
+        short: "y",
+        multiple: true,
+      },
+    },
+  });
+
+  const desiredYears =
+    values.year.length > 0
+      ? values.year.map((year) => {
+          const parsedYear = parseInt(year, 10);
+          if (isNaN(parsedYear)) {
+            throw new Error(`Invalid year: ${year}`);
+          }
+          return parsedYear;
+        })
+      : undefined;
+
+  return { desiredYears };
 }

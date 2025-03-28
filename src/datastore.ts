@@ -23,12 +23,18 @@ export class DataStore {
     return row.value ?? "";
   }
 
+  async deleteCacheKey(key: string): Promise<void> {
+    const db = await this.initDB();
+    const statement = db.prepare("DELETE FROM cache WHERE key = ?");
+    statement.run(key);
+  }
+
   async updateCache(key: string, value: string): Promise<void> {
     const db = await this.initDB();
     const statement = db.prepare(
-      "INSERT OR REPLACE INTO cache (key, value) VALUES (?, ?)",
+      "INSERT INTO cache (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
     );
-    statement.run(key, value);
+    statement.run(key, value, new Date().toISOString());
   }
 
   async getOrders(): Promise<Order[]> {
@@ -221,7 +227,8 @@ export class DataStore {
         CREATE TABLE IF NOT EXISTS cache (
           key TEXT NOT NULL,
           value TEXT NOT NULL,
-          PRIMARY KEY (key, value)
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (key)
         );
       `);
 
