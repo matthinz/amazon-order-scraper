@@ -185,7 +185,7 @@ function parseOptions(args: string[]): {
   });
 
   const desiredYears =
-    values.year.length > 0
+    values.year?.length > 0
       ? values.year.map((year) => {
           const parsedYear = parseInt(year, 10);
           if (isNaN(parsedYear)) {
