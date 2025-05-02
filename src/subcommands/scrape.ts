@@ -193,7 +193,7 @@ function parseOptions(args: string[]): {
           }
           return parsedYear;
         })
-      : undefined;
+      : [new Date().getFullYear()];
 
   return { desiredYears };
 }
