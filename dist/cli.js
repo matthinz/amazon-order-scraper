@@ -46,6 +46,7 @@ function parseProgramOptions(args, subcommands, defaultSubcommand) {
     let remainingArgs = [];
     let info = console.error.bind(console);
     let debug = () => { };
+    let verbose = () => { };
     let warn = console.error.bind(console);
     tokens.forEach((token) => {
         if (token.kind === "positional") {
@@ -77,8 +78,12 @@ function parseProgramOptions(args, subcommands, defaultSubcommand) {
             interactionAllowed = false;
             return;
         }
+        if (token.name === "verbose") {
+            verbose = console.error.bind(console);
+            return;
+        }
         if (token.name === "debug") {
-            debug = console.error.bind(console);
+            debug = verbose = console.error.bind(console);
             return;
         }
         if (token.inlineValue) {
@@ -95,6 +100,7 @@ function parseProgramOptions(args, subcommands, defaultSubcommand) {
         user: user ?? DEFAULT_USER,
         remainingArgs,
         subcommand: subcommand ?? defaultSubcommand,
+        verbose,
         warn,
     };
 }

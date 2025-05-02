@@ -17,8 +17,10 @@ export class OrderBuilder {
     #order = {};
     #payments = [];
     #shipments = [];
+    #inferTaxes = false;
     #lastShipmentFinalized = false;
     #lastItemFinalized = false;
+    #shippingAddressRequired = true;
     #shouldAdjustTotalBasedOnGiftCards = false;
     adjustTotalBasedOnGiftCard() {
         this.#shouldAdjustTotalBasedOnGiftCards = true;
@@ -26,6 +28,24 @@ export class OrderBuilder {
     }
     build() {
         const { total, totalCents } = this.calculateTotal();
+        const shippingCost = this.#order.shippingCost;
+        const shippingCostCents = this.#order.shippingCostCents;
+        const subtotal = ensure(this.#order, "subtotal");
+        const subtotalCents = ensure(this.#order, "subtotalCents");
+        let tax = ensure(this.#order, "tax");
+        let taxCents = ensure(this.#order, "taxCents");
+        if (this.#inferTaxes) {
+            // Amazon is not including tax information in the raw HTML, so we have
+            // to fill in the blanks
+            if (taxCents) {
+                throw new Error("inferTaxes is set but order already has tax");
+            }
+            taxCents = totalCents - subtotalCents - shippingCostCents;
+            tax = formatMonetaryAmount({
+                currency: this.#order.currency,
+                cents: taxCents,
+            });
+        }
         return {
             id: ensure(this.#order, "id"),
             currency: ensure(this.#order, "currency"),
@@ -63,26 +83,28 @@ export class OrderBuilder {
                         priceCents: ensure(i, "priceCents"),
                         quantity: ensure(i, "quantity"),
                     })),
-                    shippingAddress: {
+                };
+                if (this.#shippingAddressRequired) {
+                    result.shippingAddress = {
                         name: ensure(s.shippingAddress, "name"),
                         address: ensure(s.shippingAddress, "address"),
                         city: ensure(s.shippingAddress, "city"),
                         state: ensure(s.shippingAddress, "state"),
                         zip: ensure(s.shippingAddress, "zip"),
                         country: ensure(s.shippingAddress, "country"),
-                    },
-                };
+                    };
+                }
                 if (s.date != null) {
                     result.date = s.date;
                 }
                 return result;
             }),
-            shippingCost: this.#order.shippingCost,
-            shippingCostCents: this.#order.shippingCostCents,
-            subtotal: ensure(this.#order, "subtotal"),
-            subtotalCents: ensure(this.#order, "subtotalCents"),
-            tax: ensure(this.#order, "tax"),
-            taxCents: ensure(this.#order, "taxCents"),
+            shippingCost,
+            shippingCostCents,
+            subtotal,
+            subtotalCents,
+            tax,
+            taxCents,
             total,
             totalCents,
         };
@@ -128,6 +150,24 @@ export class OrderBuilder {
             addr.city = parts.join(", ");
             addr;
         }
+        return this;
+    }
+    /**
+     * The order HTML sometimes does not include tax information--specifically for Whole Foods
+     * orders it seems like they are loading it client side so they can break it down.
+     * inferTaxes() means we'll just calculate the different between the total and the
+     * subtotal + shipping and call that the tax.
+     */
+    inferTaxes() {
+        this.#inferTaxes = true;
+        return this;
+    }
+    /**
+     * Indicates this order will not actually be shipped, so
+     * no shipping address is needed.
+     */
+    nothingWillBeShipped() {
+        this.#shippingAddressRequired = false;
         return this;
     }
     setCurrency(currency) {

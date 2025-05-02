@@ -760,4 +760,81 @@ describe("Invoice from 2025", async () => {
         });
     });
 });
+describe("Invoice from Whole Foods (wtf)", async () => {
+    let order;
+    before(async () => {
+        const fixtureHTML = await fs.readFile("fixtures/invoice-wholefoods.html", "utf-8");
+        order = parseInvoice(fixtureHTML, console.error);
+    });
+    describe("#date", () => {
+        it("works", () => {
+            assert.strictEqual(order?.date, "2025-04-22");
+        });
+    });
+    describe("#id", () => {
+        it("works", () => {
+            assert.strictEqual(order.id, "113-3912345-9933003");
+        });
+    });
+    describe("#placedBy", () => {
+        it("works", () => {
+            assert.strictEqual(order.placedBy, undefined);
+        });
+    });
+    describe("#shipments", () => {
+        it("works", () => {
+            assert.deepStrictEqual(order?.shipments, [
+                {
+                    date: "2025-04-22",
+                    items: [
+                        {
+                            name: "WHOLE FOODS MARKET Spinach Feta Orzo Salad",
+                            price: "$3.69",
+                            priceCents: 369,
+                            quantity: 1,
+                        },
+                        {
+                            name: "Kikka Sushi Tofu Spring Roll, 6 OZ",
+                            price: "$8.99",
+                            priceCents: 899,
+                            quantity: 1,
+                        },
+                        {
+                            name: "Misfits Peanut Butter Fudge Protein Bar, 1.8 OZ",
+                            price: "$2.99",
+                            priceCents: 299,
+                            quantity: 1,
+                        },
+                    ],
+                },
+            ]);
+        });
+    });
+    describe("#payments", () => {
+        it("works", () => {
+            // Order hasn't shipped, thus no payments
+            assert.deepStrictEqual(order.payments, []);
+        });
+    });
+    describe("#shippingCost", () => {
+        it("works", () => {
+            assert.strictEqual(order.shippingCost, "$0.00");
+        });
+    });
+    describe("#subtotal", () => {
+        it("works", () => {
+            assert.strictEqual(order.subtotal, "$15.67");
+        });
+    });
+    describe("#tax", () => {
+        it("works", () => {
+            assert.strictEqual(order.tax, "$0.00");
+        });
+    });
+    describe("#total", () => {
+        it("works", () => {
+            assert.strictEqual(order.total, "$16.60");
+        });
+    });
+});
 //# sourceMappingURL=invoice.test.js.map

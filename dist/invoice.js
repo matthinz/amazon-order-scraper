@@ -8,7 +8,7 @@ export function parseInvoice(html, log = NOOP) {
     getContentChunks(html).forEach((token) => {
         log(`${handler.name}: ${token}`);
         const result = handler(token, builder);
-        if (typeof result === "function") {
+        if (typeof result === "function" && result !== handler) {
             handler = result;
             log(`  -> ${handler.name}`);
         }
@@ -38,6 +38,13 @@ function executeParserSteps(steps, token, order) {
 }
 function item(token, order) {
     return (executeParserSteps([
+        {
+            equals: "Shipping Address: Shipping Speed: Payment information", // Nothing was shipped, e.g. I went to Whole Foods
+            handler() {
+                order.nothingWillBeShipped();
+                return unknown;
+            },
+        },
         {
             matches: /^.?[\d\.,]+$/,
             handler: () => {

@@ -50,7 +50,7 @@ export type ShippingAddress = {
 
 export type Shipment = {
   date?: string;
-  shippingAddress: ShippingAddress;
+  shippingAddress?: ShippingAddress;
   items: OrderItem[];
 };
 

@@ -13,18 +13,20 @@ const DEFAULTS = {
     minDelay: 500,
     maxDelay: 1500,
     user: "default",
+    years: undefined,
     onCacheHit: () => { },
     onCacheMiss: () => { },
     onYearStarted: () => { },
     onYearComplete: () => { },
     onOrderScraped: () => { },
     debug: () => { },
+    verbose: () => { },
     warn: () => { },
 };
 export class SignInRequiredError extends Error {
     #page;
-    constructor(page) {
-        super("Sign in required.");
+    constructor(message, page) {
+        super(message);
         this.#page = page;
         this.name = this.constructor.name;
     }
@@ -71,6 +73,9 @@ export class Scraper {
         }
     }
     async getYears(page) {
+        if (this.#options.years != null) {
+            return this.#options.years;
+        }
         const checkCache = async (key) => {
             const content = await this.datastore.checkCache(key);
             if (content == null) {
@@ -105,7 +110,7 @@ export class Scraper {
         }, async (url, document, rawContent, page) => {
             const years = this.scrapeYears(rawContent);
             if (years == null) {
-                throw new SignInRequiredError(page);
+                throw new SignInRequiredError("Error parsing year page", page);
             }
             return years;
         });
@@ -130,48 +135,56 @@ export class Scraper {
             this.debug(`Delay ${delay}dms before navigation to ${url.toString()}`);
             await new Promise((resolve) => setTimeout(resolve, delay));
         }
+        this.verbose(`Navigating to ${url.toString()}`);
         await page.goto(url.toString());
         this.#lastNavigationAt = new Date();
     }
     cacheKey(url) {
         return ["v1", "user", this.#options.user, "url", url.toString()].join(":");
     }
-    async parsePageContent({ url, checkCache, updateCache }, handler) {
+    async parsePageContent({ url, checkCache, updateCache, page }, handler) {
         const cacheKey = this.cacheKey(url);
         let content = await checkCache(cacheKey);
         let actualURL = url;
-        const doParse = async (url, rawContent, page) => {
-            const needCacheUpdate = !!page;
-            let didUpdateCache = false;
-            if (needCacheUpdate) {
-                if (url.toString() === actualURL.toString()) {
-                    await updateCache(cacheKey, content);
-                    didUpdateCache = true;
-                }
-                else {
-                    this.debug(`URL changed from ${url.toString()} to ${url.toString()}, not caching contents unless callback succeeds`);
-                }
+        const doParse = async (url, rawContent, shouldUpdateCache, page) => {
+            const { document } = new JSDOM(rawContent).window;
+            let result;
+            try {
+                result = await handler(actualURL, document, rawContent, page);
             }
-            const { document } = new JSDOM(content).window;
-            const result = await handler(actualURL, document, rawContent, page);
-            if (needCacheUpdate && !didUpdateCache) {
-                this.debug(`Callback succeeded, updating cache for ${url.toString()}`);
-                await updateCache(cacheKey, content);
+            catch (err) {
+                if (shouldUpdateCache) {
+                    this.verbose(`Error parsing page content (not caching): ${err.message}`);
+                }
+                throw err;
+            }
+            if (!shouldUpdateCache) {
+                return result;
+            }
+            if (url.toString() === actualURL.toString()) {
+                await updateCache(cacheKey, rawContent);
+            }
+            else {
+                this.warn(`URL changed from ${url.toString()} to ${url.toString()}, not caching contents`);
             }
             return result;
         };
-        console.error("content", content);
-        if (content == null) {
-            return this.withBrowser(url, async (page) => {
-                const pageContent = await page.content();
-                if (pageContent == null) {
-                    throw new Error("Failed to get page content");
+        let cachedContent = content;
+        while (true) {
+            if (cachedContent != null) {
+                try {
+                    return await doParse(url, cachedContent, false);
                 }
-                return doParse(new URL(page.url()), pageContent, page);
-            });
-        }
-        else {
-            return doParse(url, content);
+                catch (err) {
+                    this.warn(`Error parsing cached content (falling back to browser): ${err.message}`);
+                    cachedContent = undefined;
+                }
+            }
+            else {
+                return this.withBrowser(url, async (page) => {
+                    return doParse(new URL(page.url()), await page.content(), true, page);
+                }, page);
+            }
         }
     }
     async scrapeOrder(invoiceURL) {
@@ -196,6 +209,7 @@ export class Scraper {
                 this.onCacheMiss(key, `Order ${order.id} is too recent to use cache`);
                 return;
             }
+            this.onCacheHit(key, value);
             return value;
         };
         const updateCache = async (key, value) => {
@@ -205,6 +219,7 @@ export class Scraper {
             catch (err) {
                 throw new InvoiceParsingFailedError(err.message, value);
             }
+            this.verbose(`Updating cache for ${key}`);
             await this.datastore.updateCache(key, value);
         };
         const order = await this.parsePageContent({
@@ -218,7 +233,7 @@ export class Scraper {
                 return order;
             }
             catch (err) {
-                throw new SignInRequiredError(page);
+                throw new SignInRequiredError("Error scraping order page", page);
             }
         });
         this.onOrderScraped(order);
@@ -252,81 +267,59 @@ export class Scraper {
             // If _all_ the order IDs that appear on that page have already
             // been scraped, we can proceed to use the cache. Otherwise, we
             // need to re-scrape the entire year
-            const invoiceURLs = this.scrapeInvoiceURLsFromPage(value);
-            if (await this.allInvoiceURLsCached(invoiceURLs)) {
-                this.onCacheHit(key, "All invoices are cached, using cache");
-                return value;
+            try {
+                const invoiceURLs = findInvoiceURLs(new JSDOM(value).window.document);
+                if (await this.allInvoiceURLsCached(invoiceURLs)) {
+                    this.onCacheHit(key, "All invoices are cached, using cache");
+                    return value;
+                }
+            }
+            catch (err) {
+                if (!(err instanceof SignInRequiredError)) {
+                    throw err;
+                }
             }
             this.onCacheMiss(key, `${year} is the current year and has new order IDs, not using order cache`);
         };
+        const updateCache = async (key, value) => {
+            this.verbose(`Updating cache for ${key}`);
+            await this.datastore.updateCache(key, value);
+        };
+        const findInvoiceURLs = (document) => {
+            return Array.from(document.querySelectorAll(INVOICE_LINK_SELECTOR))
+                .map((a) => a.href)
+                .map((url) => new URL(url, this.#options.root));
+        };
+        const NEXT_PAGE_LINK_SELECTOR = "li.a-last a";
         const allOrders = [];
         this.onYearStarted(year);
         while (url != null) {
             pageIndex++;
-            this.debug(`Scraping page ${pageIndex} of orders for year ${year}`);
-            const { orders, nextPageURL } = await this.parsePageContent({
+            this.verbose(`Scraping page ${pageIndex} of orders for year ${year}`);
+            const [invoiceURLs, nextPageURL] = await this.parsePageContent({
                 url,
                 checkCache,
-                updateCache: this.datastore.updateCache.bind(this.datastore),
+                updateCache,
                 page,
-            }, async (_url, _document, rawContent, page) => {
-                const { orders, nextPageURL } = await this.scrapeOrdersFromPage(rawContent);
-                if (nextPageURL) {
-                    this.debug(`Next page URL: ${nextPageURL}`);
+            }, async (url, document, _, page) => {
+                const invoiceURLs = findInvoiceURLs(document);
+                if (invoiceURLs.length === 0) {
+                    throw new SignInRequiredError(`No invoices found on ${url.toString()}`, page);
                 }
-                return { orders, nextPageURL };
+                let nextPageURL = document.querySelector(NEXT_PAGE_LINK_SELECTOR)?.href;
+                return [
+                    invoiceURLs,
+                    nextPageURL == null ? undefined : new URL(nextPageURL, url),
+                ];
             });
-            allOrders.push(...orders);
+            await invoiceURLs.reduce((promise, invoiceURL) => promise.then(async () => {
+                const { order } = await this.scrapeOrder(invoiceURL);
+                allOrders.push(order);
+            }), Promise.resolve());
             url = nextPageURL;
         }
         this.onYearComplete(year, allOrders);
         return allOrders;
-    }
-    async scrapeOrdersFromPage(html) {
-        const NEXT_PAGE_LINK_SELECTOR = "li.a-last a";
-        const { document } = new JSDOM(html).window;
-        const invoiceURLs = Array.from(document.querySelectorAll(INVOICE_LINK_SELECTOR))
-            .map((a) => a.href)
-            .map((url) => {
-            const parsedURL = new URL(url, this.#options.root);
-            const m = ORDER_ID_REGEX.exec(parsedURL.searchParams.get("orderID") ?? "");
-            if (!m) {
-                return;
-            }
-            return parsedURL;
-        })
-            .filter(Boolean);
-        if (invoiceURLs.length === 0) {
-            const el = document.querySelector(".num-orders");
-            const m = /^(\d+)\s+/.exec(el?.textContent?.trim() ?? "");
-            if (m) {
-                const numOrders = parseInt(m[1], 10);
-                if (numOrders === 0) {
-                    return {
-                        orders: [],
-                        nextPageURL: undefined,
-                        anyWereCached: false,
-                    };
-                }
-            }
-            throw new SignInRequiredError();
-        }
-        let anyWereCached = false;
-        const orders = await invoiceURLs.reduce(async (promise, invoiceURL) => promise.then(async (result) => {
-            const { order, wasCached } = await this.scrapeOrder(invoiceURL);
-            anyWereCached = anyWereCached || wasCached;
-            result.push(order);
-            return result;
-        }), Promise.resolve([]));
-        const href = document.querySelector(NEXT_PAGE_LINK_SELECTOR)?.href;
-        const nextPageURL = href ? new URL(href, this.#options.root) : undefined;
-        return { orders, nextPageURL, anyWereCached };
-    }
-    scrapeInvoiceURLsFromPage(html) {
-        const { document } = new JSDOM(html).window;
-        return Array.from(document.querySelectorAll(INVOICE_LINK_SELECTOR))
-            .map((a) => a.href)
-            .map((url) => new URL(url, this.#options.root));
     }
     scrapeYears(document) {
         document =
@@ -364,8 +357,8 @@ export class Scraper {
         catch (err) {
             // If the err is being used to return a reference to the page,
             // don't close it here
-            if (shouldCleanUpPage) {
-                shouldCleanUpPage = !("page" in err) || err.page !== pageToUse;
+            if ("page" in err && err.page === pageToUse) {
+                shouldCleanUpPage = false;
             }
             throw err;
         }
@@ -401,6 +394,9 @@ export class Scraper {
     }
     get onYearComplete() {
         return this.#options.onYearComplete;
+    }
+    get verbose() {
+        return this.#options.verbose;
     }
     get warn() {
         return this.#options.warn;
