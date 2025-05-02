@@ -377,7 +377,7 @@ export class Scraper {
           );
           return order;
         } catch (err) {
-          throw new SignInRequiredError("Error scraping order page", page);
+          throw new InvoiceParsingFailedError(err.message, rawContent);
         }
       },
     );

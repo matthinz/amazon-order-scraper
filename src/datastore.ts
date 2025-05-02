@@ -123,12 +123,12 @@ export class DataStore {
       const { lastInsertRowid } = this.insert(db, "shipments", {
         order_id: order.id,
         date: shipment.date,
-        name: shipment.shippingAddress.name,
-        address: shipment.shippingAddress.address,
-        city: shipment.shippingAddress.city,
-        state: shipment.shippingAddress.state,
-        zip: shipment.shippingAddress.zip,
-        country: shipment.shippingAddress.country,
+        name: shipment.shippingAddress?.name ?? "",
+        address: shipment.shippingAddress?.address ?? "",
+        city: shipment.shippingAddress?.city ?? "",
+        state: shipment.shippingAddress?.state ?? "",
+        zip: shipment.shippingAddress?.zip ?? "",
+        country: shipment.shippingAddress?.country ?? "",
       });
 
       this.saveOrderItems(db, order, lastInsertRowid);
