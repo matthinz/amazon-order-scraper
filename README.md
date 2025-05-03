@@ -36,14 +36,30 @@ to switch to the browser and authenticate.
 
 ## Viewing orders
 
-This will list all your orders:
+You can list and filter your orders using the `orders` subcommand (or by omitting the subcommand since `orders` is default):
 
 ```shell
+# List all orders
+node src/main.ts orders
+# Or simply
 node src/main.ts
 ```
 
-If you want to find an order that corresponds with a specific credit card charge, do this:
+Options:
+
+- `--total=<amount>` Filter orders by total amount (e.g., `--total=123.45`)
+- `--charge=<amount>` Filter orders by payment charge amount (e.g., `--charge=12.34`)
+- `[orderIds...]` One or more order IDs to include (positional arguments)
+
+Examples:
 
 ```shell
-node src/main.ts orders --charge=12.34
+# Filter by total amount
+node src/main.ts orders --total=100.00
+
+# Filter by charge amount
+node src/main.ts orders --charge=25.00
+
+# Filter by total and charge for a specific order
+node src/main.ts orders --total=100.00 --charge=25.00 123-4567890-1234567
 ```
