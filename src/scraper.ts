@@ -11,6 +11,16 @@ type BrowserContext = Awaited<
   ReturnType<typeof chromium.launchPersistentContext>
 >;
 
+export type OrderScrapeAction =
+  | "SCRAPE_ORDER"
+  | "SKIP_ORDER"
+  | "SKIP_YEAR"
+  | "STOP_SCRAPING";
+
+export type YearScrapeAction =
+  | Omit<OrderScrapeAction, "SKIP_ORDER" | "SCRAPE_ORDER">
+  | "SCRAPE_YEAR";
+
 export type ScraperOptions = {
   root: string;
   datastore: DataStore;
@@ -19,7 +29,6 @@ export type ScraperOptions = {
   minDelay: number;
   maxDelay: number;
   user?: string;
-  years?: number[];
 
   onCacheHit: (key: string, value: string) => void;
   onCacheMiss: (key: string, description: string) => void;
@@ -27,8 +36,20 @@ export type ScraperOptions = {
   verbose: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
 
-  onYearStarted: (year: number) => void;
-  onYearComplete: (year: number, orders: Order[]) => void;
+  /**
+   * Hook called before an order is scraped.
+   * @param id
+   * @param date
+   * @returns
+   */
+  onBeforeOrderScrape: (id: string, date: Date) => OrderScrapeAction | void;
+
+  /**
+   * Hook called before scraping a year.
+   * @returns
+   */
+  onBeforeYearScrape: (year: number) => YearScrapeAction | void;
+
   onOrderScraped: (order: Order) => void;
 };
 
@@ -40,7 +61,6 @@ type ParsePageContentOptions = {
 };
 
 const ORDERS_URL = "/your-orders/orders";
-const ORDER_ID_REGEX = /(\d+-\d+-\d+)/;
 
 const MIN_ORDER_AGE_TO_USE_CACHE_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -54,13 +74,12 @@ const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   minDelay: 500,
   maxDelay: 1500,
   user: "default",
-  years: undefined,
 
   onCacheHit: () => {},
   onCacheMiss: () => {},
 
-  onYearStarted: () => {},
-  onYearComplete: () => {},
+  onBeforeOrderScrape: () => {},
+  onBeforeYearScrape: () => {},
   onOrderScraped: () => {},
 
   debug: () => {},
@@ -68,10 +87,24 @@ const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   warn: () => {},
 };
 
-export class SignInRequiredError extends Error {
-  #page: Page | undefined;
-  constructor(message: string, page?: Page) {
+export class ParsingError extends Error {
+  #html: string;
+
+  constructor(message: string, html: string) {
     super(message);
+    this.#html = html;
+    this.name = this.constructor.name;
+  }
+
+  get html() {
+    return this.#html;
+  }
+}
+
+export class SignInRequiredError extends ParsingError {
+  #page: Page | undefined;
+  constructor(message: string, html: string, page?: Page) {
+    super(message, html);
     this.#page = page;
     this.name = this.constructor.name;
   }
@@ -81,18 +114,12 @@ export class SignInRequiredError extends Error {
   }
 }
 
-export class InvoiceParsingFailedError extends Error {
+export class InvoiceParsingFailedError extends ParsingError {
   #reason: string;
-  #invoiceHTML: string;
   constructor(reason: string, invoiceHTML: string) {
-    super(`Failed to parse invoice: ${reason}`);
+    super(`Failed to parse invoice: ${reason}`, invoiceHTML);
     this.#reason = reason;
-    this.#invoiceHTML = invoiceHTML;
     this.name = this.constructor.name;
-  }
-
-  get invoiceHTML() {
-    return this.#invoiceHTML;
   }
 
   get reason() {
@@ -132,63 +159,41 @@ export class Scraper {
     }
   }
 
-  public async getYears(page?: Page): Promise<number[]> {
-    if (this.#options.years != null) {
-      return this.#options.years;
-    }
-
-    const checkCache = async (key: string) => {
-      const content = await this.datastore.checkCache(key);
-
-      if (content == null) {
-        this.onCacheMiss(key, "No value found in cache");
-        return;
-      }
-
-      if (content != null) {
-        const years = this.scrapeYears(content);
-        if (years == null) {
-          this.onCacheMiss(key, "Failed to scrape years from cached HTML");
-          return;
-        }
-
-        const now = new Date();
-        const expectedYears = [now.getFullYear()];
-
-        if (now.getMonth() === 0) {
-          expectedYears.push(now.getFullYear() - 1);
-        }
-
-        const allYearsPresent = expectedYears.every((year) =>
-          years.includes(year),
-        );
-
-        if (!allYearsPresent) {
-          this.onCacheMiss(
-            key,
-            `Years ${expectedYears.join(",")} not found in cache, not using`,
-          );
-          return;
-        }
-      }
-
-      this.debug(`Using cache for key %s`, key);
-
-      return content;
-    };
-
+  /**
+   * @returns {Promise<number[]>} - The years available for scraping
+   */
+  public async getYearsAvailableToScrape(page?: Page): Promise<number[]> {
     return await this.parsePageContent(
       {
         url: new URL(ORDERS_URL, this.#options.root),
-        checkCache,
-        updateCache: this.datastore.updateCache.bind(this.datastore),
+        checkCache: (key: string) => Promise.resolve(undefined),
+        updateCache: (key: string, value: string) => Promise.resolve(),
         page,
       },
       async (url, document, rawContent, page) => {
-        const years = this.scrapeYears(rawContent);
-        if (years == null) {
-          throw new SignInRequiredError("Error parsing year page", page);
+        document =
+          typeof document === "string"
+            ? new JSDOM(document).window.document
+            : document;
+
+        const select = document.querySelector<HTMLSelectElement>(
+          'select[name="timeFilter"]',
+        );
+
+        if (!select) {
+          throw new SignInRequiredError(
+            "Error parsing year page",
+            document.documentElement.outerHTML,
+            page,
+          );
         }
+
+        const years = Array.from(select.options)
+          .map((o) => o.value)
+          .filter((v) => /^year-/.test(v))
+          .map((v) => parseInt(v.replace(/^year-/, ""), 10));
+
+        years.sort((a, b) => b - a);
 
         return years;
       },
@@ -196,13 +201,38 @@ export class Scraper {
   }
 
   async scrape(page?: Page): Promise<void> {
-    const years = await this.getYears(page);
+    const years = await this.getYearsAvailableToScrape(page);
     this.debug(`Years to scrape: ${years.join(",")}`);
+
+    let continueScraping = true;
 
     return years.reduce<Promise<void>>(
       (promise, year) =>
         promise.then(async () => {
-          await this.scrapeOrdersForYear(year, page);
+          if (!continueScraping) {
+            return;
+          }
+
+          const action = this.#options.onBeforeYearScrape(year) ?? "SCRAPE";
+
+          switch (action) {
+            case "STOP_SCRAPING":
+              this.verbose(`Stopping scraping before year ${year}`);
+              continueScraping = false;
+              return;
+
+            case "SKIP_YEAR":
+              this.verbose(`Skipping year ${year}`);
+              return;
+
+            case "SCRAPE_YEAR":
+              this.verbose(`Scraping year ${year}`);
+              await this.scrapeOrdersForYear(year, page);
+              return;
+
+            default:
+              throw new Error(`Unknown action "${action}" for year ${year}`);
+          }
         }),
       Promise.resolve(),
     );
@@ -468,8 +498,6 @@ export class Scraper {
 
     const allOrders: Order[] = [];
 
-    this.onYearStarted(year);
-
     while (url != null) {
       pageIndex++;
       this.verbose(`Scraping page ${pageIndex} of orders for year ${year}`);
@@ -487,6 +515,7 @@ export class Scraper {
           if (invoiceURLs.length === 0) {
             throw new SignInRequiredError(
               `No invoices found on ${url.toString()}`,
+              document.documentElement.outerHTML,
               page,
             );
           }
@@ -514,33 +543,7 @@ export class Scraper {
       url = nextPageURL;
     }
 
-    this.onYearComplete(year, allOrders);
-
     return allOrders;
-  }
-
-  protected scrapeYears(document: Document | string): number[] | undefined {
-    document =
-      typeof document === "string"
-        ? new JSDOM(document).window.document
-        : document;
-
-    const select = document.querySelector<HTMLSelectElement>(
-      'select[name="timeFilter"]',
-    );
-
-    if (!select) {
-      return;
-    }
-
-    const years = Array.from(select.options)
-      .map((o) => o.value)
-      .filter((v) => /^year-/.test(v))
-      .map((v) => parseInt(v.replace(/^year-/, ""), 10));
-
-    years.sort((a, b) => b - a);
-
-    return years;
   }
 
   private async withBrowser<T>(
@@ -605,14 +608,6 @@ export class Scraper {
 
   get onOrderScraped() {
     return this.#options.onOrderScraped;
-  }
-
-  get onYearStarted() {
-    return this.#options.onYearStarted;
-  }
-
-  get onYearComplete() {
-    return this.#options.onYearComplete;
   }
 
   get verbose() {

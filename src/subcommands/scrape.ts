@@ -9,6 +9,7 @@ import {
   type ScraperOptions,
 } from "../scraper.ts";
 import type { SubcommandOptions } from "../types.ts";
+import { parseDateInput } from "../utils.ts";
 
 type ScrapeAttemptResult =
   | {
@@ -28,23 +29,50 @@ type ScrapeAttemptResult =
 export async function scrape(options: SubcommandOptions): Promise<void> {
   let scraper: Scraper | undefined;
   let headless = true;
-  const scrapedYears: number[] = [];
 
-  const { desiredYears } = parseOptions(options.args);
+  const { from, to } = parseOptions(options.args);
+  const scrapedOrderIDs = new Set<string>();
 
   try {
     while (true) {
       scraper =
         scraper ??
-        createScraper(
-          {
-            ...options,
-            years: desiredYears,
-            headless,
+        createScraper({
+          ...options,
+          headless,
+
+          onBeforeOrderScrape: (id, date) => {
+            if (scrapedOrderIDs.has(id)) {
+              return "SKIP_ORDER";
+            }
+
+            if (date > to) {
+              return "STOP_SCRAPING";
+            }
+
+            if (date < from) {
+              return "SKIP_ORDER";
+            }
+
+            return "SCRAPE_ORDER";
           },
-          desiredYears,
-          scrapedYears,
-        );
+
+          onBeforeYearScrape: (year) => {
+            if (year > to.getFullYear()) {
+              return "STOP_SCRAPING";
+            }
+
+            if (year < from.getFullYear()) {
+              return "SKIP_YEAR";
+            }
+
+            return "SCRAPE_YEAR";
+          },
+
+          onOrderScraped(order) {
+            scrapedOrderIDs.add(order.id);
+          },
+        });
 
       const result = await attemptScrape(scraper);
 
@@ -110,7 +138,7 @@ async function attemptScrape(scraper: Scraper): Promise<ScrapeAttemptResult> {
       return {
         complete: false,
         invoiceParsingFailed: true,
-        invoiceHTML: err.invoiceHTML,
+        invoiceHTML: err.html,
         reason: err.reason,
       };
     }
@@ -120,8 +148,6 @@ async function attemptScrape(scraper: Scraper): Promise<ScrapeAttemptResult> {
 
 function createScraper(
   options: SubcommandOptions & Partial<ScraperOptions>,
-  desiredYears: number[] | undefined,
-  scrapedYears: number[],
 ): Scraper {
   return new Scraper({
     ...options,
@@ -130,23 +156,6 @@ function createScraper(
     },
     onCacheMiss(key, reason) {
       options.warn(`Cache miss for ${key}: ${reason}`);
-    },
-    onYearStarted(year) {
-      if (desiredYears != null && !desiredYears.includes(year)) {
-        options.verbose(`Skipping orders for ${year}`);
-        return false;
-      }
-
-      if (scrapedYears.includes(year)) {
-        options.verbose(`Already scraped orders for ${year}`);
-        return false;
-      }
-
-      options.info(`Scraping orders for ${year}`);
-    },
-    onYearComplete(year, orders) {
-      options.info(`Scraped ${orders.length} order(s) for ${year}`);
-      scrapedYears.push(year);
     },
     onOrderScraped(order) {
       options.info(`Scraped order ${order.id}`);
@@ -170,30 +179,39 @@ async function promptForSignIn(rl: readline.Interface): Promise<void> {
 }
 
 function parseOptions(args: string[]): {
-  desiredYears: number[] | undefined;
+  from: Date;
+  to: Date;
 } {
   const { values } = parseArgs({
     allowPositionals: false,
     args,
     options: {
-      year: {
+      from: {
         type: "string",
-        short: "y",
-        multiple: true,
+      },
+      to: {
+        type: "string",
       },
     },
   });
 
-  const desiredYears =
-    values.year?.length > 0
-      ? values.year.map((year) => {
-          const parsedYear = parseInt(year, 10);
-          if (isNaN(parsedYear)) {
-            throw new Error(`Invalid year: ${year}`);
-          }
-          return parsedYear;
-        })
-      : [new Date().getFullYear()];
+  const { from: rawFrom, to: rawTo } = values;
 
-  return { desiredYears };
+  let from = rawFrom == null ? undefined : parseDateInput(rawFrom, new Date());
+  let to = rawTo == null ? undefined : parseDateInput(rawTo, new Date());
+
+  if (to == null) {
+    to = new Date();
+  }
+
+  if (from == null) {
+    to = new Date();
+    from = parseDateInput("1 week", to);
+  }
+
+  if (from > to) {
+    [to, from] = [from, to];
+  }
+
+  return { from, to };
 }
