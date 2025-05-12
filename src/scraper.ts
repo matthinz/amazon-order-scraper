@@ -19,7 +19,8 @@ export type OrderScrapeAction =
 
 export type YearScrapeAction =
   | Omit<OrderScrapeAction, "SKIP_ORDER" | "SCRAPE_ORDER">
-  | "SCRAPE_YEAR";
+  | "SCRAPE_YEAR"
+  | "SCRAPE_YEAR_NO_CACHE";
 
 export type ScraperOptions = {
   root: string;
@@ -64,8 +65,7 @@ const ORDERS_URL = "/your-orders/orders";
 
 const MIN_ORDER_AGE_TO_USE_CACHE_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
-const INVOICE_LINK_SELECTOR =
-  '.order-header__header-link-list-item a[href*="print.html"]';
+const INVOICE_LINK_SELECTOR = 'a[href*="print.html"]';
 
 const DEFAULTS: Required<Omit<ScraperOptions, "dataDir" | "datastore">> = {
   root: "https://www.amazon.com",
@@ -227,7 +227,12 @@ export class Scraper {
 
             case "SCRAPE_YEAR":
               this.verbose(`Scraping year ${year}`);
-              await this.scrapeOrdersForYear(year, page);
+              await this.scrapeOrdersForYear(year, true, page);
+              return;
+
+            case "SCRAPE_YEAR_NO_CACHE":
+              this.verbose(`Scraping year ${year} without cache`);
+              await this.scrapeOrdersForYear(year, false, page);
               return;
 
             default:
@@ -317,6 +322,7 @@ export class Scraper {
     };
 
     let cachedContent = content;
+    let browserAttempts = 0;
 
     while (true) {
       if (cachedContent != null) {
@@ -329,18 +335,36 @@ export class Scraper {
           cachedContent = undefined;
         }
       } else {
-        return this.withBrowser(
-          url,
-          async (page) => {
-            return doParse(
-              new URL(page.url()),
-              await page.content(),
-              true,
-              page,
-            );
-          },
-          page,
-        );
+        if (browserAttempts > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, browserAttempts * 300),
+          );
+        }
+
+        browserAttempts++;
+
+        try {
+          return await this.withBrowser(
+            url,
+            async (page) => {
+              return doParse(
+                new URL(page.url()),
+                await page.content(),
+                true,
+                page,
+              );
+            },
+            page,
+          );
+        } catch (err) {
+          this.verbose(
+            `Error parsing page content (attempt ${browserAttempts}): ${err.message}`,
+          );
+
+          if (browserAttempts > 4) {
+            throw err;
+          }
+        }
       }
     }
   }
@@ -434,6 +458,7 @@ export class Scraper {
 
   private async scrapeOrdersForYear(
     year: number,
+    cacheAllowed = true,
     page?: Page,
   ): Promise<Order[]> {
     let url: URL | undefined = new URL(
@@ -443,6 +468,11 @@ export class Scraper {
     let pageIndex = 0;
 
     const checkCache = async (key: string) => {
+      if (!cacheAllowed) {
+        this.onCacheMiss(key, `Cache not allowed`);
+        return;
+      }
+
       const value = await this.datastore.checkCache(key);
 
       if (value == null) {
@@ -450,35 +480,8 @@ export class Scraper {
         return;
       }
 
-      const now = new Date();
-
-      if (year < now.getFullYear()) {
-        // Prior years are fixed, we can just use the cache
-        this.onCacheHit(key, value);
-        return value;
-      }
-
-      // For the current year, we need to grab the first page.
-      // If _all_ the order IDs that appear on that page have already
-      // been scraped, we can proceed to use the cache. Otherwise, we
-      // need to re-scrape the entire year
-
-      try {
-        const invoiceURLs = findInvoiceURLs(new JSDOM(value).window.document);
-        if (await this.allInvoiceURLsCached(invoiceURLs)) {
-          this.onCacheHit(key, "All invoices are cached, using cache");
-          return value;
-        }
-      } catch (err) {
-        if (!(err instanceof SignInRequiredError)) {
-          throw err;
-        }
-      }
-
-      this.onCacheMiss(
-        key,
-        `${year} is the current year and has new order IDs, not using order cache`,
-      );
+      this.onCacheHit(key, value);
+      return value;
     };
 
     const updateCache = async (key, value) => {

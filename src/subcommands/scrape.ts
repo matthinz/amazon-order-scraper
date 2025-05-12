@@ -66,6 +66,12 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
               return "SKIP_YEAR";
             }
 
+            if (year === new Date().getFullYear()) {
+              // For the current year, we can't cache since orders are still
+              // in flux
+              return "SCRAPE_YEAR_NO_CACHE";
+            }
+
             return "SCRAPE_YEAR";
           },
 
