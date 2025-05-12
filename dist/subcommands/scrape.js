@@ -3,20 +3,49 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
 import { InvoiceParsingFailedError, Scraper, SignInRequiredError, } from "../scraper.js";
+import { parseDateInput } from "../utils.js";
 export async function scrape(options) {
     let scraper;
     let headless = true;
-    const scrapedYears = [];
-    const { desiredYears } = parseOptions(options.args);
+    const { from, to } = parseOptions(options.args);
+    const scrapedOrderIDs = new Set();
     try {
         while (true) {
             scraper =
                 scraper ??
                     createScraper({
                         ...options,
-                        years: desiredYears,
                         headless,
-                    }, desiredYears, scrapedYears);
+                        onBeforeOrderScrape: (id, date) => {
+                            if (scrapedOrderIDs.has(id)) {
+                                return "SKIP_ORDER";
+                            }
+                            if (date > to) {
+                                return "STOP_SCRAPING";
+                            }
+                            if (date < from) {
+                                return "SKIP_ORDER";
+                            }
+                            return "SCRAPE_ORDER";
+                        },
+                        onBeforeYearScrape: (year) => {
+                            if (year > to.getFullYear()) {
+                                return "STOP_SCRAPING";
+                            }
+                            if (year < from.getFullYear()) {
+                                return "SKIP_YEAR";
+                            }
+                            if (year === new Date().getFullYear()) {
+                                // For the current year, we can't cache since orders are still
+                                // in flux
+                                return "SCRAPE_YEAR_NO_CACHE";
+                            }
+                            return "SCRAPE_YEAR";
+                        },
+                        onOrderScraped(order) {
+                            scrapedOrderIDs.add(order.id);
+                        },
+                    });
             const result = await attemptScrape(scraper);
             if (result.complete) {
                 return;
@@ -67,36 +96,21 @@ async function attemptScrape(scraper) {
             return {
                 complete: false,
                 invoiceParsingFailed: true,
-                invoiceHTML: err.invoiceHTML,
+                invoiceHTML: err.html,
                 reason: err.reason,
             };
         }
         throw err;
     }
 }
-function createScraper(options, desiredYears, scrapedYears) {
+function createScraper(options) {
     return new Scraper({
         ...options,
         onCacheHit(key) {
             options.verbose(`Cache hit for ${key}`);
         },
         onCacheMiss(key, reason) {
-            options.warn(`Cache miss for ${key}: ${reason}`);
-        },
-        onYearStarted(year) {
-            if (desiredYears != null && !desiredYears.includes(year)) {
-                options.verbose(`Skipping orders for ${year}`);
-                return false;
-            }
-            if (scrapedYears.includes(year)) {
-                options.verbose(`Already scraped orders for ${year}`);
-                return false;
-            }
-            options.info(`Scraping orders for ${year}`);
-        },
-        onYearComplete(year, orders) {
-            options.info(`Scraped ${orders.length} order(s) for ${year}`);
-            scrapedYears.push(year);
+            options.verbose(`Cache miss for ${key}: ${reason}`);
         },
         onOrderScraped(order) {
             options.info(`Scraped order ${order.id}`);
@@ -119,22 +133,27 @@ function parseOptions(args) {
         allowPositionals: false,
         args,
         options: {
-            year: {
+            from: {
                 type: "string",
-                short: "y",
-                multiple: true,
+            },
+            to: {
+                type: "string",
             },
         },
     });
-    const desiredYears = values.year?.length > 0
-        ? values.year.map((year) => {
-            const parsedYear = parseInt(year, 10);
-            if (isNaN(parsedYear)) {
-                throw new Error(`Invalid year: ${year}`);
-            }
-            return parsedYear;
-        })
-        : undefined;
-    return { desiredYears };
+    const { from: rawFrom, to: rawTo } = values;
+    let from = rawFrom == null ? undefined : parseDateInput(rawFrom, new Date());
+    let to = rawTo == null ? undefined : parseDateInput(rawTo, new Date());
+    if (to == null) {
+        to = new Date();
+    }
+    if (from == null) {
+        to = new Date();
+        from = parseDateInput("1 week", to);
+    }
+    if (from > to) {
+        [to, from] = [from, to];
+    }
+    return { from, to };
 }
 //# sourceMappingURL=scrape.js.map

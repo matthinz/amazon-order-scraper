@@ -41,6 +41,11 @@ export class DataStore {
         })
             .sort((a, b) => (a.date ?? "").localeCompare(b.date));
     }
+    async getUsers() {
+        const db = await this.initDB();
+        const statement = db.prepare("SELECT DISTINCT user FROM orders");
+        return statement.all().map((row) => row.user);
+    }
     async saveOrder(order, user, invoiceURL, invoiceHTML) {
         const db = await this.initDB();
         db.exec("BEGIN TRANSACTION");
@@ -95,12 +100,12 @@ export class DataStore {
             const { lastInsertRowid } = this.insert(db, "shipments", {
                 order_id: order.id,
                 date: shipment.date,
-                name: shipment.shippingAddress.name,
-                address: shipment.shippingAddress.address,
-                city: shipment.shippingAddress.city,
-                state: shipment.shippingAddress.state,
-                zip: shipment.shippingAddress.zip,
-                country: shipment.shippingAddress.country,
+                name: shipment.shippingAddress?.name ?? "",
+                address: shipment.shippingAddress?.address ?? "",
+                city: shipment.shippingAddress?.city ?? "",
+                state: shipment.shippingAddress?.state ?? "",
+                zip: shipment.shippingAddress?.zip ?? "",
+                country: shipment.shippingAddress?.country ?? "",
             });
             this.saveOrderItems(db, order, lastInsertRowid);
         });
