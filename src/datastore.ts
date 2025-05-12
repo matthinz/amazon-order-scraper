@@ -54,6 +54,12 @@ export class DataStore {
       .sort((a: Order, b: Order) => (a.date ?? "").localeCompare(b.date));
   }
 
+  async getUsers() {
+    const db = await this.initDB();
+    const statement = db.prepare("SELECT DISTINCT user FROM orders");
+    return statement.all().map((row: any) => row.user);
+  }
+
   async saveOrder(
     order: Order,
     user: string,

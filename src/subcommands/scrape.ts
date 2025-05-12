@@ -155,7 +155,7 @@ function createScraper(
       options.verbose(`Cache hit for ${key}`);
     },
     onCacheMiss(key, reason) {
-      options.warn(`Cache miss for ${key}: ${reason}`);
+      options.verbose(`Cache miss for ${key}: ${reason}`);
     },
     onOrderScraped(order) {
       options.info(`Scraped order ${order.id}`);
