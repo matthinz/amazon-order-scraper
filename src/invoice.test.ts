@@ -885,6 +885,110 @@ describe("Invoice from 2025", async () => {
   });
 });
 
+describe("Invoice from 2025 #2", async () => {
+  let order: Order;
+
+  before(async () => {
+    const fixtureHTML = await fs.readFile(
+      "fixtures/invoice-2025-02.html",
+      "utf-8",
+    );
+    order = parseInvoice(fixtureHTML);
+  });
+
+  describe("#date", () => {
+    it("works", () => {
+      assert.strictEqual(order?.date, "2025-06-14");
+    });
+  });
+
+  describe("#id", () => {
+    it("works", () => {
+      assert.strictEqual(order.id, "112-1863430-8529846");
+    });
+  });
+
+  describe("#placedBy", () => {
+    it("works", () => {
+      assert.strictEqual(order.placedBy, undefined);
+    });
+  });
+
+  describe("#shipments", () => {
+    it("works", () => {
+      assert.deepStrictEqual(order?.shipments, [
+        {
+          items: [
+            {
+              name: "KODAK REELS 8mm & Super 8 Films Digitizer Converter with Big 5” Screen, Scanner Converts Film Frame by Frame to Digital MP4 Files for Viewing, Sharing & Saving on SD Card for 3” 4” 5” 7” and 9” Reels",
+              price: "$419.99",
+              priceCents: 41999,
+              quantity: 1,
+            },
+          ],
+          shippingAddress: {
+            name: "Joey Joe Joe Junior Shabbadoo",
+            address: "1234 Fake ST",
+            city: "Anytown",
+            state: "WA",
+            zip: "90001-1510",
+            country: "United States",
+          },
+        },
+        {
+          items: [
+            {
+              name: "Amazon Kindle Scribe (16GB) - Redesigned display with uniform borders. Now write directly on books and documents. With built-in notebook summarization. Includes Premium Pen - Tungsten",
+              price: "$299.99",
+              priceCents: 29999,
+              quantity: 1,
+            },
+          ],
+          shippingAddress: {
+            name: "Joey Joe Joe Junior Shabbadoo",
+            address: "1234 Fake ST",
+            city: "Anytown",
+            state: "WA",
+            zip: "90001-1510",
+            country: "United States",
+          },
+        },
+      ]);
+    });
+  });
+
+  describe("#payments", () => {
+    it("works", () => {
+      // Order hasn't shipped, thus no payments
+      assert.deepStrictEqual(order.payments, []);
+    });
+  });
+
+  describe("#shippingCost", () => {
+    it("works", () => {
+      assert.strictEqual(order.shippingCost, "$0.00");
+    });
+  });
+
+  describe("#subtotal", () => {
+    it("works", () => {
+      assert.strictEqual(order.subtotal, "$719.98");
+    });
+  });
+
+  describe("#tax", () => {
+    it("works", () => {
+      assert.strictEqual(order.tax, "$64.80");
+    });
+  });
+
+  describe("#total", () => {
+    it("works", () => {
+      assert.strictEqual(order.total, "$784.78");
+    });
+  });
+});
+
 describe("Invoice from Whole Foods (wtf)", async () => {
   let order: Order;
 
@@ -893,7 +997,7 @@ describe("Invoice from Whole Foods (wtf)", async () => {
       "fixtures/invoice-wholefoods.html",
       "utf-8",
     );
-    order = parseInvoice(fixtureHTML, console.error);
+    order = parseInvoice(fixtureHTML);
   });
 
   describe("#date", () => {

@@ -190,6 +190,13 @@ function unknown(token: string, order: OrderBuilder) {
         handler: () => items,
       },
       {
+        equals: "Shipping now",
+        handler() {
+          order.finalizeShipment();
+          return unknown;
+        },
+      },
+      {
         matches: /Amazon\.com order number: (\d+-\d+-\d+)/,
         handler(m) {
           order.setID(m[1]);
