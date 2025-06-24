@@ -98,11 +98,10 @@ export async function scrape(options: SubcommandOptions): Promise<void> {
       // messed up and the user needs to do something.
 
       if ("invoiceParsingFailed" in result && result.invoiceParsingFailed) {
-        const htmlFile = path.join(options.dataDir, "invoice.html");
-        await fs.writeFile(htmlFile, result.invoiceHTML, "utf8");
+        const fixturePath = await saveFixtureHTML(result.invoiceHTML);
 
         throw new Error(
-          `Failed to parse invoice HTML: ${result.reason}.\n\nInvoice HTML has been saved to ${htmlFile}.`,
+          `Failed to parse invoice HTML: ${result.reason}.\n\nInvoice HTML has been saved to ${fixturePath}.`,
         );
       }
 
@@ -220,4 +219,98 @@ function parseOptions(args: string[]): {
   }
 
   return { from, to };
+}
+
+async function saveFixtureHTML(html: string): Promise<string> {
+  const potentialOrderIDs: { [id: string]: number } =
+    html.match(/\b\d{3}-\d{7}-\d{7}\b/g)?.reduce((acc, id) => {
+      acc[id] = (acc[id] ?? 0) + 1;
+      return acc;
+    }, {}) ?? {};
+
+  const sortedPotentialOrderIDs = Object.entries(potentialOrderIDs)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => id);
+
+  const orderID = sortedPotentialOrderIDs[0];
+  if (!orderID) {
+    throw new Error("No order ID found in the invoice HTML.");
+  }
+
+  const fixturesDir = path.join(import.meta.dirname, "../..", "fixtures");
+
+  let fixtureFile: string;
+
+  const { html: anonymizedHTML, orderID: anonymizedOrderID } =
+    await anonymizeInvoiceHTML(html, orderID, potentialOrderIDs);
+
+  fixtureFile = path.join(fixturesDir, `invoice-${anonymizedOrderID}.html`);
+
+  await fs.mkdir(path.dirname(fixtureFile), { recursive: true });
+  await fs.writeFile(path.join(fixturesDir, fixtureFile), anonymizedHTML);
+
+  const jsonFile = path.join(fixturesDir, `invoice-${anonymizedOrderID}.json`);
+  await fs.writeFile(jsonFile, "{}\n");
+
+  return fixtureFile;
+}
+
+async function anonymizeInvoiceHTML(
+  html: string,
+  orderID: string,
+  potentialOrderIDs: { [id: string]: number },
+): Promise<{ orderID: string; html: string }> {
+  let newOrderID: string;
+
+  Object.keys(potentialOrderIDs).forEach((id) => {
+    const regex = new RegExp(id, "g");
+    const replacement = generateRandomOrderID();
+    if (id === orderID) {
+      newOrderID = replacement;
+    }
+    html = html.replace(regex, replacement);
+  });
+
+  if (!newOrderID) {
+    throw new Error();
+  }
+
+  html = await replacePiiTokens(html);
+
+  return { orderID: newOrderID, html };
+}
+
+async function replacePiiTokens(html: string): Promise<string> {
+  let piiTokens: { [pattern: string]: string };
+
+  try {
+    const json = await fs.readFile("pii_tokens.json", "utf8");
+    piiTokens = JSON.parse(json);
+  } catch (err) {
+    throw err;
+  }
+
+  Object.entries(piiTokens).forEach(([pattern, replacement]) => {
+    const regex = new RegExp(pattern, "gi");
+    html = html.replace(regex, String(replacement));
+  });
+
+  return html;
+}
+
+function generateRandomOrderID() {
+  return [
+    new Array(3)
+      .fill(0)
+      .map(() => Math.floor(Math.random() * 10))
+      .join(""),
+    new Array(7)
+      .fill(0)
+      .map(() => Math.floor(Math.random() * 10))
+      .join(""),
+    new Array(7)
+      .fill(0)
+      .map(() => Math.floor(Math.random() * 10))
+      .join(""),
+  ].join("-");
 }
