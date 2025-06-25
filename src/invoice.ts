@@ -5,6 +5,8 @@ import type { Order } from "./types.ts";
 const CITY_STATE_ZIP_REGEX =
   /^(?<city>.+), (?<state>[A-Za-z]+) (?<zip>(\d{5})(-\d{4})?)$/;
 
+const MONEY_REGEX = /^(?<currency>[$€£])?(?<amount>[\d,.]+)$/;
+
 const NOOP = () => {};
 
 type ParserHandler = (
@@ -173,6 +175,10 @@ function shipping(token: string, order: OrderBuilder) {
           return unknown;
         },
       },
+      {
+        equals: "Payment method",
+        handler: () => unknown,
+      },
       (token) => {
         order.setNextShippingAddressField(token);
       },
@@ -214,9 +220,47 @@ function unknown(token: string, order: OrderBuilder) {
           order.setDate(m.groups.year, m.groups.month, m.groups.day);
         },
       },
-
       {
-        matches: /Order Total: (.+)/,
+        matches: /^Order placed$/,
+        handler: () =>
+          function orderPlaced(token: string, order: OrderBuilder) {
+            return executeParserSteps(
+              [
+                {
+                  matches: /^[a-z]+ \d{1,2}, \d{4}$/i,
+                  handler(m) {
+                    const [month, day, year] = m[0].split(" ");
+                    order.setDate(year, month, day);
+                    return unknown;
+                  },
+                },
+              ],
+              token,
+              order,
+            );
+          },
+      },
+      {
+        matches: /^Order #/,
+        handler: () =>
+          function orderNumber(token: string, order: OrderBuilder) {
+            return executeParserSteps(
+              [
+                {
+                  matches: /.+/,
+                  handler(m) {
+                    order.setID(m[0]);
+                    return unknown;
+                  },
+                },
+              ],
+              token,
+              order,
+            );
+          },
+      },
+      {
+        matches: /(?:Order|Grand) Total: (.+)/,
         handler(m) {
           order.setTotal(m[1]);
         },
@@ -258,16 +302,51 @@ function unknown(token: string, order: OrderBuilder) {
             .adjustTotalBasedOnGiftCard();
         },
       },
+      {
+        equals: "Ship to",
+        handler: () => shipping,
+      },
+      {
+        equals: "Arriving tomorrow",
+        handler: () =>
+          function arrivingTomorrow(token, order) {
+            return executeParserSteps(
+              [
+                {
+                  matches: /.+/,
+                  handler(m) {
+                    order.setItemName(m[0]);
+                    order.setItemQuantity(1);
+
+                    return function price(token, order) {
+                      const m = MONEY_REGEX.exec(token);
+                      if (m) {
+                        const priceToken = m[0];
+                        order.setItemPrice(m[0]);
+                        order.finalizeItem();
+
+                        return function consumeDuplicatePriceToken(
+                          token,
+                          order,
+                        ) {
+                          if (token === priceToken) {
+                            return unknown;
+                          }
+
+                          return unknown(token, order);
+                        };
+                      }
+                    };
+                  },
+                },
+              ],
+              token,
+              order,
+            );
+          },
+      },
     ],
     token,
     order,
   );
-}
-
-function pad(num: number, width: number): string {
-  let s = num.toString();
-  while (s.length < width) {
-    s = `0${s}`;
-  }
-  return s;
 }

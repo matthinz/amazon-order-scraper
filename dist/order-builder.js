@@ -329,7 +329,6 @@ export class OrderBuilder {
     calculateTotal() {
         let totalCents = this.#order.totalCents;
         if (totalCents == null) {
-            console.error(this.#order);
             throw new Error("Total not set");
         }
         if (this.#shouldAdjustTotalBasedOnGiftCards) {

@@ -31,13 +31,16 @@ describe("Invoice parsing", async () => {
           }
         }
 
-        if (!Object.keys(expected).includes("placedBy")) {
+        if (expected && !Object.keys(expected).includes("placedBy")) {
           expected["placedBy"] = undefined;
         }
       });
 
       it("should parse the invoice correctly", async () => {
-        const order = parseInvoice(fixtureHTML);
+        const order = parseInvoice(
+          fixtureHTML,
+          process.env["DEBUG"] === "1" ? console.error : () => {},
+        );
 
         if (shouldGenerateExpected) {
           await fs.writeFile(
