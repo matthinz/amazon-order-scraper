@@ -241,23 +241,18 @@ function unknown(token: string, order: OrderBuilder) {
           },
       },
       {
-        matches: /^Order #/,
-        handler: () =>
-          function orderNumber(token: string, order: OrderBuilder) {
-            return executeParserSteps(
-              [
-                {
-                  matches: /.+/,
-                  handler(m) {
-                    order.setID(m[0]);
-                    return unknown;
-                  },
-                },
-              ],
-              token,
-              order,
-            );
-          },
+        matches: /^Order #: (\d{3}-\d{7}-\d{7})/,
+        handler(m) {
+          order.setID(m[1]);
+          return unknown;
+        },
+      },
+      {
+        matches: /^Purchased [a-z]+, ([a-z]+) (\d+), (\d{4})$/i,
+        handler(m) {
+          order.setDate(m[3], m[1], m[2]);
+          return unknown;
+        },
       },
       {
         matches: /(?:Order|Grand) Total: (.+)/,
@@ -338,6 +333,169 @@ function unknown(token: string, order: OrderBuilder) {
                       }
                     };
                   },
+                },
+              ],
+              token,
+              order,
+            );
+          },
+      },
+      {
+        equals: "Items in your order",
+        handler: () =>
+          function groceryItems(token, order) {
+            order.nothingWillBeShipped();
+
+            return executeParserSteps(
+              [
+                {
+                  matches: /(\$[\d,\.]+) each$/,
+                  handler() {},
+                },
+                {
+                  matches: MONEY_REGEX,
+                  handler(moneyMatch, order) {
+                    return function groceryItemPrice(token, order) {
+                      const m = /Qty: (\d+)/.exec(token);
+
+                      if (m) {
+                        const quantity = parseInt(m[1], 10);
+                        order
+                          .setItemPrice(moneyMatch[0], quantity)
+                          .finalizeItem();
+                        return groceryItems;
+                      }
+                    };
+                  },
+                },
+                {
+                  equals: "@",
+                  handler() {},
+                },
+                {
+                  equals: "View all items",
+                  handler: () => unknown,
+                },
+                {
+                  matches: /(.+)/,
+                  handler(m) {
+                    order.setItemName(m[1]);
+                  },
+                },
+              ],
+              token,
+              order,
+            );
+          },
+      },
+      {
+        equals: "Item Subtotal",
+        handler: () =>
+          function groceryItemSubtotal(token, order) {
+            return executeParserSteps(
+              [
+                {
+                  matches: MONEY_REGEX,
+                  handler(m) {
+                    order.setSubtotal(m[0]);
+                    return unknown;
+                  },
+                },
+              ],
+              token,
+              order,
+            );
+          },
+      },
+      {
+        equals: "Total Savings",
+        handler: () =>
+          function groceryTotalSavings(token, order) {
+            // TODO
+            return unknown;
+          },
+      },
+      {
+        equals: "Tax and Fees",
+        handler: () =>
+          function groceryTaxAndFees(token, order) {
+            const m = MONEY_REGEX.exec(token);
+            if (m) {
+              order.setTax(m[0]);
+            }
+            return unknown;
+          },
+      },
+      {
+        equals: "Bag Fee",
+        handler: () =>
+          function groceryBagFee(token, order) {
+            const m = MONEY_REGEX.exec(token);
+            if (m) {
+              order
+                .setItemName("Bag Fee")
+                .setItemQuantity(1)
+                .setItemPrice(m[0])
+                .finalizeItem();
+            }
+            return unknown;
+          },
+      },
+
+      {
+        equals: "Grand Total",
+        handler: () =>
+          function groceryGrandTotal(token, order) {
+            const m = MONEY_REGEX.exec(token);
+            if (m) {
+              order.setTotal(m[0]);
+            }
+            return unknown;
+          },
+      },
+      {
+        equals: "Payment Methods",
+        handler: () =>
+          function groceryPaymentMethods(token, order) {
+            return executeParserSteps(
+              [
+                {
+                  equals: "Cash",
+                  handler: () => {
+                    order.addCashPayment();
+                    return groceryPaymentMethods;
+                  },
+                },
+                {
+                  matches: /^(Visa|MasterCard|American Express|Discover)$/,
+                  handler: function groceryCreditCardPayment(
+                    creditCardTypeToken,
+                    order,
+                  ) {
+                    return function groceryCreditCardNumber(
+                      ccNumberToken,
+                      order,
+                    ) {
+                      if (/^\*\d{4}$/.test(ccNumberToken)) {
+                        order.addCreditCardPayment(
+                          creditCardTypeToken,
+                          ccNumberToken.substring(1),
+                        );
+                        return groceryPaymentMethods;
+                      }
+                    };
+                  },
+                },
+                {
+                  matches: MONEY_REGEX,
+                  handler(m) {
+                    order.setPaymentAmount(m[0]);
+                    return groceryPaymentMethods;
+                  },
+                },
+                {
+                  equals: "How was your trip?",
+                  handler: () => unknown,
                 },
               ],
               token,

@@ -22,7 +22,10 @@ describe("Invoice parsing", async () => {
         fixtureHTML = await fs.readFile(fixtureFile, "utf-8");
 
         try {
-          expected = JSON.parse(await fs.readFile(expectedJSONFile, "utf-8"));
+          const rawExpected = await fs.readFile(expectedJSONFile, "utf-8");
+          shouldGenerateExpected = ["", "{}"].includes(rawExpected.trim());
+
+          expected = JSON.parse(rawExpected);
         } catch (err) {
           if (err.code === "ENOENT") {
             shouldGenerateExpected = true;

@@ -66,32 +66,54 @@ export class OrderBuilder {
       });
     }
 
+    const date = ensure(this.#order, "date");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error(`Invalid date format: ${date}. Expected YYYY-MM-DD`);
+    }
+
     return {
       id: ensure(this.#order, "id"),
       currency: ensure(this.#order, "currency"),
-      date: ensure(this.#order, "date"),
+      date,
       payments: this.#payments.map((p, index) => {
         if (p.type == null) {
           throw new Error(`Payment ${index} type not set`);
         }
+
+        const date = p.date ?? this.#order.date;
+        if (date == null) {
+          throw new Error(`Payment ${index} date not set`);
+        }
+
+        const amount = ensure(p, "amount");
+        const amountCents = ensure(p, "amountCents");
 
         if (p.type === "credit_card") {
           return {
             type: "credit_card",
             cardType: ensure(p, "cardType"),
             last4: ensure(p, "last4"),
-            date: ensure(p, "date"),
-            amount: ensure(p, "amount"),
-            amountCents: ensure(p, "amountCents"),
+            date,
+            amount,
+            amountCents,
           };
         }
 
         if (p.type === "gift_card") {
           return {
             type: "gift_card",
-            date: ensure(p, "date"),
-            amount: ensure(p, "amount"),
-            amountCents: ensure(p, "amountCents"),
+            date,
+            amount,
+            amountCents,
+          };
+        }
+
+        if (p.type === "cash") {
+          return {
+            type: "cash",
+            date,
+            amount,
+            amountCents,
           };
         }
 
@@ -144,6 +166,13 @@ export class OrderBuilder {
       }
       return obj[key]!;
     }
+  }
+
+  addCashPayment(): this {
+    this.payments.push({
+      type: "cash",
+    });
+    return this;
   }
 
   addCreditCardPayment(cardType: string, last4: string): this {
@@ -249,9 +278,13 @@ export class OrderBuilder {
     return this;
   }
 
-  setItemPrice(value: string | number): this {
+  setItemPrice(value: string | number, quantity?: number): this {
     const item = this.ensureShipmentItem();
-    const [price, priceCents] = this.parseAmount(value);
+    let {
+      currency,
+      value: price,
+      cents: priceCents,
+    } = parseMonetaryAmount(value);
 
     if (item.priceCents != null && item.priceCents !== priceCents) {
       throw new Error(
@@ -259,8 +292,19 @@ export class OrderBuilder {
       );
     }
 
-    item.price = price;
-    item.priceCents = priceCents;
+    if (quantity != null) {
+      priceCents = Math.floor(priceCents / quantity);
+      value = formatMonetaryAmount({
+        currency,
+        cents: priceCents,
+      });
+
+      this.setItemPrice(value).setItemQuantity(quantity);
+    } else {
+      item.price = price;
+      item.priceCents = priceCents;
+    }
+
     return this;
   }
 
@@ -287,9 +331,9 @@ export class OrderBuilder {
 
   setPaymentAmount(amount: string | number) {
     const payment = this.payments[this.payments.length - 1];
-    const [amountStr, amountCents] = this.parseAmount(amount);
-    payment.amount = amountStr;
-    payment.amountCents = amountCents;
+    const { value, cents } = parseMonetaryAmount(amount);
+    payment.amount = value;
+    payment.amountCents = cents;
     return this;
   }
 
@@ -364,7 +408,8 @@ export class OrderBuilder {
   }
 
   setShippingCost(value: string | number): this {
-    const [shippingCost, shippingCostCents] = this.parseAmount(value);
+    const { value: shippingCost, cents: shippingCostCents } =
+      parseMonetaryAmount(value);
     if (
       this.#order.shippingCostCents != null &&
       this.#order.shippingCostCents !== shippingCostCents
@@ -377,7 +422,8 @@ export class OrderBuilder {
   }
 
   setSubtotal(value: string | number): this {
-    const [subtotal, subtotalCents] = this.parseAmount(value);
+    const { value: subtotal, cents: subtotalCents } =
+      parseMonetaryAmount(value);
     if (
       this.#order.subtotalCents != null &&
       this.#order.subtotalCents !== subtotalCents
@@ -390,7 +436,7 @@ export class OrderBuilder {
   }
 
   setTax(value: string | number): this {
-    const [tax, taxCents] = this.parseAmount(value);
+    const { value: tax, cents: taxCents } = parseMonetaryAmount(value);
     if (this.#order.taxCents != null && this.#order.taxCents !== taxCents) {
       throw new Error("Tax already set");
     }
@@ -400,7 +446,7 @@ export class OrderBuilder {
   }
 
   setTotal(value: string | number): this {
-    const [total, totalCents] = this.parseAmount(value);
+    const { value: total, cents: totalCents } = parseMonetaryAmount(value);
     if (
       this.#order.totalCents != null &&
       this.#order.totalCents !== totalCents
@@ -518,14 +564,6 @@ export class OrderBuilder {
     }
 
     return this.normalizeDate(groups.year, groups.month, groups.day);
-  }
-
-  private parseAmount(value: string | number): [string, number] {
-    const amount = typeof value === "number" ? value.toFixed(2) : value;
-    const amountCents = Math.round(
-      parseFloat(amount.replace(/[^0-9\.]/g, "")) * 100,
-    );
-    return [amount, amountCents];
   }
 }
 

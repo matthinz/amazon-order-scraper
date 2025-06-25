@@ -37,7 +37,11 @@ export type GiftCardPayment = BasePayment & {
   type: "gift_card";
 };
 
-export type Payment = CreditCardPayment | GiftCardPayment;
+export type CashPayment = BasePayment & {
+  type: "cash";
+};
+
+export type Payment = CreditCardPayment | GiftCardPayment | CashPayment;
 
 export type ShippingAddress = {
   name: string;
