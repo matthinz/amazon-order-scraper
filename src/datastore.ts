@@ -1,6 +1,6 @@
 import path from "node:path";
 import sqlite from "node:sqlite";
-import { parseInvoice } from "./invoice.ts";
+import { parseInvoiceHTML } from "./invoice-parser/main.ts";
 import type { Order } from "./types.ts";
 
 export class DataStore {
@@ -44,7 +44,7 @@ export class DataStore {
       .all()
       .map((row: any) => {
         try {
-          return parseInvoice(row.invoice_html);
+          return parseInvoiceHTML(row.invoice_html);
         } catch (err) {
           throw new Error(
             `Error parsing invoice ${row.order_id}: ${err.message}`,

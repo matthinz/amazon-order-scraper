@@ -15,13 +15,29 @@ export function monetaryAmountsEqual(
 }
 
 export function parseMonetaryAmount(amount: string | number) {
-  const value = typeof amount === "string" ? amount : amount.toString();
-  const currency = value.includes("$") ? "$" : undefined;
-  const cents = Math.floor(parseFloat(value.replace(/[\$,]/g, "")) * 100);
+  const amountAsString = String(amount).trim();
+  const currency = amountAsString.includes("$") ? "$" : undefined;
+
+  const parts = amountAsString
+    .replace(/[\$,]/g, "")
+    .split(".")
+    .map((part) => {
+      if (part === "") {
+        return 0;
+      }
+      return parseInt(part, 10);
+    });
+
+  if (parts.length > 2) {
+    throw new Error(`Invalid monetary amount: ${amount}`);
+  }
+
+  const sign = parts[0] < 0 ? -1 : 1;
+  const cents = parts[0] * 100 + (parts[1] || 0) * sign;
 
   return {
     currency,
-    value,
+    value: amountAsString,
     cents,
   };
 }

@@ -12,6 +12,10 @@ type PartialShipment = Partial<Pick<Shipment, "date">> & {
   shippingAddress: Partial<ShippingAddress>;
 };
 
+export type OrderBuilderOptions = {
+  onAttributeCaptured?: (attr: string, value: unknown) => void;
+};
+
 const MONTHS = [
   "January",
   "February",
@@ -28,6 +32,7 @@ const MONTHS = [
 ];
 
 export class OrderBuilder {
+  #options: OrderBuilderOptions;
   #order: Partial<Order> = {};
   #payments: Partial<Payment>[] = [];
   #shipments: PartialShipment[] = [];
@@ -36,6 +41,13 @@ export class OrderBuilder {
   #lastItemFinalized = false;
   #shippingAddressRequired = true;
   #shouldAdjustTotalBasedOnGiftCards = false;
+
+  constructor(options?: OrderBuilderOptions) {
+    this.#options = {
+      onAttributeCaptured: (attr, value) => {},
+      ...(options ?? {}),
+    };
+  }
 
   adjustTotalBasedOnGiftCard(): this {
     this.#shouldAdjustTotalBasedOnGiftCards = true;
@@ -162,7 +174,7 @@ export class OrderBuilder {
     ): NonNullable<T[TKey]> {
       const value = obj[key];
       if (value == null) {
-        throw new Error(`${String(key)} not set`);
+        throw new Error(`${String(key)} not set on ${JSON.stringify(obj)}`);
       }
       return obj[key]!;
     }
@@ -175,7 +187,7 @@ export class OrderBuilder {
     return this;
   }
 
-  addCreditCardPayment(cardType: string, last4: string): this {
+  addCreditCardPayment(cardType: string, last4?: string): this {
     this.payments.push({
       type: "credit_card",
       cardType,
@@ -239,15 +251,41 @@ export class OrderBuilder {
     return this;
   }
 
+  setCreditCardLast4(last4: string): this {
+    const payment = this.lastPayment;
+    if (payment.type !== "credit_card") {
+      throw new Error("Last payment is not a credit card");
+    }
+    if (payment.last4 != null && payment.last4 !== last4) {
+      throw new Error("Last 4 digits already set");
+    }
+
+    if (payment.last4 == null) {
+      payment.last4 = last4;
+      this.#options.onAttributeCaptured("last4", last4);
+    }
+
+    return this;
+  }
+
   setCurrency(currency: string): this {
     if (this.#order.currency != null && this.#order.currency !== currency) {
       throw new Error("Currency already set");
     }
-    this.#order.currency = currency;
+
+    if (this.#order.currency == null) {
+      this.#options.onAttributeCaptured("currency", currency);
+      this.#order.currency = currency;
+    }
+
     return this;
   }
 
-  setDate(year: number | string, month: number, day: number): this;
+  setDate(
+    year: number | string,
+    month: number | string,
+    day: number | string,
+  ): this;
   setDate(date: string): this;
   setDate(m: RegExpMatchArray): this;
   setDate(
@@ -255,7 +293,17 @@ export class OrderBuilder {
     month?: number,
     day?: number,
   ): this {
-    this.#order.date = this.normalizeDate(yearOrDateOrMatchArray, month, day);
+    const date = this.normalizeDate(yearOrDateOrMatchArray, month, day);
+
+    if (this.#order.date != null && this.#order.date !== date) {
+      throw new Error("Date already set");
+    }
+
+    if (this.#order.date == null) {
+      this.#order.date = date;
+      this.#options.onAttributeCaptured("date", date);
+    }
+
     return this;
   }
 
@@ -263,18 +311,32 @@ export class OrderBuilder {
     if (this.#order.id != null && this.#order.id !== id) {
       throw new Error("ID already set");
     }
-    this.#order.id = id;
+
+    if (this.#order.id == null) {
+      this.#order.id = id;
+      this.#options.onAttributeCaptured("id", id);
+    }
+
     return this;
   }
 
   setItemName(value: string): this {
     this.ensureShipmentItem().name = value;
+
+    if (this.#options.onAttributeCaptured) {
+      this.#options.onAttributeCaptured("itemName", value);
+    }
+
     return this;
   }
 
   setItemQuantity(value: string | number): this {
-    this.ensureShipmentItem().quantity =
-      typeof value === "number" ? value : parseInt(value, 10);
+    value = typeof value === "number" ? value : parseInt(value, 10);
+    this.ensureShipmentItem().quantity = value;
+
+    if (this.#options.onAttributeCaptured) {
+      this.#options.onAttributeCaptured("itemQuantity", value);
+    }
     return this;
   }
 
@@ -293,7 +355,8 @@ export class OrderBuilder {
     }
 
     if (quantity != null) {
-      priceCents = Math.floor(priceCents / quantity);
+      priceCents =
+        quantity === 1 ? priceCents : Math.floor(priceCents / quantity);
       value = formatMonetaryAmount({
         currency,
         cents: priceCents,
@@ -303,6 +366,9 @@ export class OrderBuilder {
     } else {
       item.price = price;
       item.priceCents = priceCents;
+      if (this.#options.onAttributeCaptured) {
+        this.#options.onAttributeCaptured("itemPrice", price);
+      }
     }
 
     return this;
@@ -322,6 +388,9 @@ export class OrderBuilder {
     for (const field of fields) {
       if (shipment.shippingAddress[field] == null) {
         shipment.shippingAddress[field] = value;
+        if (this.#options.onAttributeCaptured) {
+          this.#options.onAttributeCaptured(`shippingAddress.${field}`, value);
+        }
         return this;
       }
     }
@@ -330,26 +399,46 @@ export class OrderBuilder {
   }
 
   setPaymentAmount(amount: string | number) {
-    const payment = this.payments[this.payments.length - 1];
     const { value, cents } = parseMonetaryAmount(amount);
-    payment.amount = value;
-    payment.amountCents = cents;
+
+    if (this.lastPayment.amount != null && this.lastPayment.amount !== value) {
+      throw new Error(
+        `Payment amount already set (was ${this.lastPayment.amountCents}, trying to set to ${cents})`,
+      );
+    }
+
+    if (this.lastPayment.amount == null) {
+      this.#options.onAttributeCaptured("paymentAmount", value);
+      this.lastPayment.amount = value;
+      this.lastPayment.amountCents = cents;
+    }
+
     return this;
   }
 
-  setPaymentDate(year: number | string, month: number, day: number): this;
+  setPaymentDate(
+    year: number | string,
+    month: number | string,
+    day: number | string,
+  ): this;
   setPaymentDate(date: string): this;
   setPaymentDate(m: RegExpMatchArray): this;
   setPaymentDate(
     yearOrDateOrMatchArray: number | string | RegExpMatchArray,
-    month?: number,
-    day?: number,
+    month?: number | string,
+    day?: number | string,
   ): this {
-    this.lastPayment.date = this.normalizeDate(
-      yearOrDateOrMatchArray,
-      month,
-      day,
-    );
+    const date = this.normalizeDate(yearOrDateOrMatchArray, month, day);
+
+    if (this.lastPayment.date != null && this.lastPayment.date !== date) {
+      throw new Error("Payment date already set");
+    }
+
+    if (this.lastPayment.date == null) {
+      this.lastPayment.date = date;
+      this.#options.onAttributeCaptured("paymentDate", date);
+    }
+
     return this;
   }
 
@@ -362,26 +451,64 @@ export class OrderBuilder {
   }
 
   setShippingAddress(address: string): this {
-    this.ensureShipment().shippingAddress.address = address;
+    const { shippingAddress } = this.ensureShipment();
+    if (
+      shippingAddress.address != null &&
+      shippingAddress.address !== address
+    ) {
+      throw new Error("Shipping address already set");
+    }
+    if (shippingAddress.address == null) {
+      this.#options.onAttributeCaptured("shippingAddress.address", address);
+      shippingAddress.address = address;
+    }
     return this;
   }
 
   setShippingAddressName(name: string): this {
-    this.ensureShipment().shippingAddress.name = name;
+    const { shippingAddress } = this.ensureShipment();
+    if (shippingAddress.name != null && shippingAddress.name !== name) {
+      throw new Error("Shipping name already set");
+    }
+    if (shippingAddress.name == null) {
+      this.#options.onAttributeCaptured("shippingAddress.name", name);
+      shippingAddress.name = name;
+    }
     return this;
   }
 
   setShippingCity(city: string): this {
-    this.ensureShipment().shippingAddress.city = city;
+    const { shippingAddress } = this.ensureShipment();
+    if (shippingAddress.city != null && shippingAddress.city !== city) {
+      throw new Error("Shipping city already set");
+    }
+    if (shippingAddress.city == null) {
+      this.#options.onAttributeCaptured("shippingAddress.city", city);
+      shippingAddress.city = city;
+    }
     return this;
   }
 
   setShippingCountry(country: string): this {
-    this.ensureShipment().shippingAddress.country = country;
+    const { shippingAddress } = this.ensureShipment();
+    if (
+      shippingAddress.country != null &&
+      shippingAddress.country !== country
+    ) {
+      throw new Error("Shipping country already set");
+    }
+    if (shippingAddress.country == null) {
+      this.#options.onAttributeCaptured("shippingAddress.country", country);
+      shippingAddress.country = country;
+    }
     return this;
   }
 
-  setShippingDate(year: number | string, month: number, day: number): this;
+  setShippingDate(
+    year: number | string,
+    month: number | string,
+    day: number | string,
+  ): this;
   setShippingDate(date: string): this;
   setShippingDate(m: RegExpMatchArray): this;
   setShippingDate(
@@ -389,35 +516,58 @@ export class OrderBuilder {
     month?: number,
     day?: number,
   ): this {
-    this.ensureShipment().date = this.normalizeDate(
-      yearOrDateOrMatchArray,
-      month,
-      day,
-    );
+    const date = this.normalizeDate(yearOrDateOrMatchArray, month, day);
+
+    this.ensureShipment().date = date;
+
+    if (this.#options.onAttributeCaptured) {
+      this.#options.onAttributeCaptured("shippingDate", date);
+    }
+
     return this;
   }
 
   setShippingState(state: string): this {
-    this.ensureShipment().shippingAddress.state = state;
+    const { shippingAddress } = this.ensureShipment();
+    if (shippingAddress.state != null && shippingAddress.state !== state) {
+      throw new Error("Shipping state already set");
+    }
+    if (shippingAddress.state == null) {
+      this.#options.onAttributeCaptured("shippingAddress.state", state);
+      shippingAddress.state = state;
+    }
     return this;
   }
 
   setShippingZip(zip: string): this {
-    this.ensureShipment().shippingAddress.zip = zip;
+    const { shippingAddress } = this.ensureShipment();
+    if (shippingAddress.zip != null && shippingAddress.zip !== zip) {
+      throw new Error("Shipping zip already set");
+    }
+    if (shippingAddress.zip == null) {
+      this.#options.onAttributeCaptured("shippingAddress.zip", zip);
+      shippingAddress.zip = zip;
+    }
+
     return this;
   }
 
   setShippingCost(value: string | number): this {
     const { value: shippingCost, cents: shippingCostCents } =
       parseMonetaryAmount(value);
+
     if (
       this.#order.shippingCostCents != null &&
       this.#order.shippingCostCents !== shippingCostCents
     ) {
       throw new Error("Shipping cost already set");
     }
-    this.#order.shippingCost = shippingCost;
-    this.#order.shippingCostCents = shippingCostCents;
+
+    if (this.#order.shippingCost == null) {
+      this.#options.onAttributeCaptured("shippingCost", shippingCost);
+      this.#order.shippingCost = shippingCost;
+      this.#order.shippingCostCents = shippingCostCents;
+    }
     return this;
   }
 
@@ -430,8 +580,13 @@ export class OrderBuilder {
     ) {
       throw new Error("Subtotal already set");
     }
-    this.#order.subtotal = subtotal;
-    this.#order.subtotalCents = subtotalCents;
+
+    if (this.#order.subtotal == null) {
+      this.#options.onAttributeCaptured("subtotal", subtotal);
+
+      this.#order.subtotal = subtotal;
+      this.#order.subtotalCents = subtotalCents;
+    }
     return this;
   }
 
@@ -440,8 +595,13 @@ export class OrderBuilder {
     if (this.#order.taxCents != null && this.#order.taxCents !== taxCents) {
       throw new Error("Tax already set");
     }
-    this.#order.tax = tax;
-    this.#order.taxCents = taxCents;
+
+    if (this.#order.tax == null) {
+      this.#options.onAttributeCaptured("tax", tax);
+      this.#order.tax = tax;
+      this.#order.taxCents = taxCents;
+    }
+
     return this;
   }
 
@@ -453,11 +613,15 @@ export class OrderBuilder {
     ) {
       throw new Error("Total already set");
     }
-    this.#order.total = total;
-    this.#order.totalCents = totalCents;
+
+    if (this.#order.total == null) {
+      this.#order.total = total;
+      this.#order.totalCents = totalCents;
+      this.#options.onAttributeCaptured("total", total);
+    }
 
     if (total.startsWith("$")) {
-      this.#order.currency = "$";
+      this.setCurrency("$");
     }
 
     return this;

@@ -46,30 +46,48 @@ export class OrderBuilder {
                 cents: taxCents,
             });
         }
+        const date = ensure(this.#order, "date");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            throw new Error(`Invalid date format: ${date}. Expected YYYY-MM-DD`);
+        }
         return {
             id: ensure(this.#order, "id"),
             currency: ensure(this.#order, "currency"),
-            date: ensure(this.#order, "date"),
+            date,
             payments: this.#payments.map((p, index) => {
                 if (p.type == null) {
                     throw new Error(`Payment ${index} type not set`);
                 }
+                const date = p.date ?? this.#order.date;
+                if (date == null) {
+                    throw new Error(`Payment ${index} date not set`);
+                }
+                const amount = ensure(p, "amount");
+                const amountCents = ensure(p, "amountCents");
                 if (p.type === "credit_card") {
                     return {
                         type: "credit_card",
                         cardType: ensure(p, "cardType"),
                         last4: ensure(p, "last4"),
-                        date: ensure(p, "date"),
-                        amount: ensure(p, "amount"),
-                        amountCents: ensure(p, "amountCents"),
+                        date,
+                        amount,
+                        amountCents,
                     };
                 }
                 if (p.type === "gift_card") {
                     return {
                         type: "gift_card",
-                        date: ensure(p, "date"),
-                        amount: ensure(p, "amount"),
-                        amountCents: ensure(p, "amountCents"),
+                        date,
+                        amount,
+                        amountCents,
+                    };
+                }
+                if (p.type === "cash") {
+                    return {
+                        type: "cash",
+                        date,
+                        amount,
+                        amountCents,
                     };
                 }
                 throw new Error(`Unexpected payment type: ${p.type}`);
@@ -115,6 +133,12 @@ export class OrderBuilder {
             }
             return obj[key];
         }
+    }
+    addCashPayment() {
+        this.payments.push({
+            type: "cash",
+        });
+        return this;
     }
     addCreditCardPayment(cardType, last4) {
         this.payments.push({
@@ -197,14 +221,25 @@ export class OrderBuilder {
             typeof value === "number" ? value : parseInt(value, 10);
         return this;
     }
-    setItemPrice(value) {
+    setItemPrice(value, quantity) {
         const item = this.ensureShipmentItem();
-        const [price, priceCents] = this.parseAmount(value);
+        let { currency, value: price, cents: priceCents, } = parseMonetaryAmount(value);
         if (item.priceCents != null && item.priceCents !== priceCents) {
             throw new Error(`Price already set (was ${item.priceCents}, trying to set to ${priceCents}`);
         }
-        item.price = price;
-        item.priceCents = priceCents;
+        if (quantity != null) {
+            priceCents =
+                quantity === 1 ? priceCents : Math.floor(priceCents / quantity);
+            value = formatMonetaryAmount({
+                currency,
+                cents: priceCents,
+            });
+            this.setItemPrice(value).setItemQuantity(quantity);
+        }
+        else {
+            item.price = price;
+            item.priceCents = priceCents;
+        }
         return this;
     }
     setNextShippingAddressField(value) {
@@ -227,9 +262,9 @@ export class OrderBuilder {
     }
     setPaymentAmount(amount) {
         const payment = this.payments[this.payments.length - 1];
-        const [amountStr, amountCents] = this.parseAmount(amount);
-        payment.amount = amountStr;
-        payment.amountCents = amountCents;
+        const { value, cents } = parseMonetaryAmount(amount);
+        payment.amount = value;
+        payment.amountCents = cents;
         return this;
     }
     setPaymentDate(yearOrDateOrMatchArray, month, day) {
@@ -272,7 +307,8 @@ export class OrderBuilder {
         return this;
     }
     setShippingCost(value) {
-        const [shippingCost, shippingCostCents] = this.parseAmount(value);
+        const { value: shippingCost, cents: shippingCostCents } = parseMonetaryAmount(value);
+        console.error("setShippingCost", JSON.stringify(value), JSON.stringify(shippingCost), JSON.stringify(shippingCostCents));
         if (this.#order.shippingCostCents != null &&
             this.#order.shippingCostCents !== shippingCostCents) {
             throw new Error("Shipping cost already set");
@@ -282,7 +318,7 @@ export class OrderBuilder {
         return this;
     }
     setSubtotal(value) {
-        const [subtotal, subtotalCents] = this.parseAmount(value);
+        const { value: subtotal, cents: subtotalCents } = parseMonetaryAmount(value);
         if (this.#order.subtotalCents != null &&
             this.#order.subtotalCents !== subtotalCents) {
             throw new Error("Subtotal already set");
@@ -292,7 +328,7 @@ export class OrderBuilder {
         return this;
     }
     setTax(value) {
-        const [tax, taxCents] = this.parseAmount(value);
+        const { value: tax, cents: taxCents } = parseMonetaryAmount(value);
         if (this.#order.taxCents != null && this.#order.taxCents !== taxCents) {
             throw new Error("Tax already set");
         }
@@ -301,7 +337,7 @@ export class OrderBuilder {
         return this;
     }
     setTotal(value) {
-        const [total, totalCents] = this.parseAmount(value);
+        const { value: total, cents: totalCents } = parseMonetaryAmount(value);
         if (this.#order.totalCents != null &&
             this.#order.totalCents !== totalCents) {
             throw new Error("Total already set");
@@ -385,11 +421,6 @@ export class OrderBuilder {
             throw new Error("Invalid match array for date (needs year, month and day groups)");
         }
         return this.normalizeDate(groups.year, groups.month, groups.day);
-    }
-    parseAmount(value) {
-        const amount = typeof value === "number" ? value.toFixed(2) : value;
-        const amountCents = Math.round(parseFloat(amount.replace(/[^0-9\.]/g, "")) * 100);
-        return [amount, amountCents];
     }
 }
 function pad(value, length) {

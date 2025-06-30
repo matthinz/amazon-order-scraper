@@ -4,7 +4,7 @@ import type { Page } from "playwright";
 import { chromium } from "playwright-extra";
 
 import { DataStore } from "./datastore.ts";
-import { parseInvoice } from "./invoice.ts";
+import { parseInvoiceHTML } from "./invoice-parser/main.ts";
 import type { Order } from "./types.ts";
 
 type BrowserContext = Awaited<
@@ -383,7 +383,7 @@ export class Scraper {
         return;
       }
 
-      const order = parseInvoice(value);
+      const order = parseInvoiceHTML(value);
 
       const { date } = order;
       if (date == null) {
@@ -406,7 +406,7 @@ export class Scraper {
 
     const updateCache = async (key: string, value: string) => {
       try {
-        parseInvoice(value);
+        parseInvoiceHTML(value);
       } catch (err) {
         throw new InvoiceParsingFailedError(err.message, value);
       }
@@ -422,7 +422,7 @@ export class Scraper {
       },
       async (url, _document, rawContent, page) => {
         try {
-          const order = parseInvoice(rawContent, this.debug);
+          const order = parseInvoiceHTML(rawContent);
           await this.datastore.saveOrder(
             order,
             this.#options.user,

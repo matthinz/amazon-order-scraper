@@ -4,12 +4,24 @@ export function monetaryAmountsEqual(a, b) {
     return a.cents === b.cents && a.currency === b.currency;
 }
 export function parseMonetaryAmount(amount) {
-    const value = typeof amount === "string" ? amount : amount.toString();
-    const currency = value.includes("$") ? "$" : undefined;
-    const cents = Math.floor(parseFloat(value.replace(/[\$,]/g, "")) * 100);
+    const amountAsString = String(amount).trim();
+    const currency = amountAsString.includes("$") ? "$" : undefined;
+    const parts = amountAsString
+        .replace(/[\$,]/g, "")
+        .split(".")
+        .map((part) => {
+        if (part === "") {
+            return 0;
+        }
+        return parseInt(part, 10);
+    });
+    if (parts.length > 2) {
+        throw new Error(`Invalid monetary amount: ${amount}`);
+    }
+    const cents = parts[0] * 100 + (parts[1] || 0);
     return {
         currency,
-        value,
+        value: amountAsString,
         cents,
     };
 }

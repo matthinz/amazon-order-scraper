@@ -1,6 +1,7 @@
 import { OrderBuilder } from "./order-builder.js";
 import { getContentChunks } from "./parsing.js";
 const CITY_STATE_ZIP_REGEX = /^(?<city>.+), (?<state>[A-Za-z]+) (?<zip>(\d{5})(-\d{4})?)$/;
+const MONEY_REGEX = /^(?<currency>[$€£])?(?<amount>[\d,.]+)$/;
 const NOOP = () => { };
 export function parseInvoice(html, log = NOOP) {
     const builder = new OrderBuilder();
@@ -114,6 +115,10 @@ function shipping(token, order) {
                 return unknown;
             },
         },
+        {
+            equals: "Payment method",
+            handler: () => unknown,
+        },
         (token) => {
             order.setNextShippingAddressField(token);
         },
@@ -151,7 +156,35 @@ function unknown(token, order) {
             },
         },
         {
-            matches: /Order Total: (.+)/,
+            matches: /^Order placed$/,
+            handler: () => function orderPlaced(token, order) {
+                return executeParserSteps([
+                    {
+                        matches: /^([a-z]+) (\d{1,2}), (\d{4})$/i,
+                        handler(m) {
+                            order.setDate(m[3], m[1], m[2]);
+                            return unknown;
+                        },
+                    },
+                ], token, order);
+            },
+        },
+        {
+            matches: /^Order #: (\d{3}-\d{7}-\d{7})/,
+            handler(m) {
+                order.setID(m[1]);
+                return unknown;
+            },
+        },
+        {
+            matches: /^Purchased [a-z]+, ([a-z]+) (\d+), (\d{4})$/i,
+            handler(m) {
+                order.setDate(m[3], m[1], m[2]);
+                return unknown;
+            },
+        },
+        {
+            matches: /(?:Order|Grand) Total: (.+)/,
             handler(m) {
                 order.setTotal(m[1]);
             },
@@ -193,13 +226,170 @@ function unknown(token, order) {
                     .adjustTotalBasedOnGiftCard();
             },
         },
+        {
+            equals: "Ship to",
+            handler: () => shipping,
+        },
+        {
+            equals: "Arriving tomorrow",
+            handler: () => function arrivingTomorrow(token, order) {
+                return executeParserSteps([
+                    {
+                        matches: /.+/,
+                        handler(m) {
+                            order.setItemName(m[0]);
+                            order.setItemQuantity(1);
+                            return function price(token, order) {
+                                const m = MONEY_REGEX.exec(token);
+                                if (m) {
+                                    const priceToken = m[0];
+                                    order.setItemPrice(m[0]);
+                                    order.finalizeItem();
+                                    return function consumeDuplicatePriceToken(token, order) {
+                                        if (token === priceToken) {
+                                            return unknown;
+                                        }
+                                        return unknown(token, order);
+                                    };
+                                }
+                            };
+                        },
+                    },
+                ], token, order);
+            },
+        },
+        {
+            equals: "Items in your order",
+            handler: () => function groceryItems(token, order) {
+                order.nothingWillBeShipped();
+                return executeParserSteps([
+                    {
+                        matches: /(\$[\d,\.]+) each$/,
+                        handler() { },
+                    },
+                    {
+                        matches: MONEY_REGEX,
+                        handler(moneyMatch, order) {
+                            return function groceryItemPrice(token, order) {
+                                const m = /Qty: (\d+)/.exec(token);
+                                if (m) {
+                                    const quantity = parseInt(m[1], 10);
+                                    order
+                                        .setItemPrice(moneyMatch[0], quantity)
+                                        .finalizeItem();
+                                    return groceryItems;
+                                }
+                            };
+                        },
+                    },
+                    {
+                        equals: "@",
+                        handler() { },
+                    },
+                    {
+                        equals: "View all items",
+                        handler: () => unknown,
+                    },
+                    {
+                        matches: /(.+)/,
+                        handler(m) {
+                            order.setItemName(m[1]);
+                        },
+                    },
+                ], token, order);
+            },
+        },
+        {
+            equals: "Item Subtotal",
+            handler: () => function groceryItemSubtotal(token, order) {
+                return executeParserSteps([
+                    {
+                        matches: MONEY_REGEX,
+                        handler(m) {
+                            order.setSubtotal(m[0]);
+                            return unknown;
+                        },
+                    },
+                ], token, order);
+            },
+        },
+        {
+            equals: "Total Savings",
+            handler: () => function groceryTotalSavings(token, order) {
+                // TODO
+                return unknown;
+            },
+        },
+        {
+            equals: "Tax and Fees",
+            handler: () => function groceryTaxAndFees(token, order) {
+                const m = MONEY_REGEX.exec(token);
+                if (m) {
+                    order.setTax(m[0]);
+                }
+                return unknown;
+            },
+        },
+        {
+            equals: "Bag Fee",
+            handler: () => function groceryBagFee(token, order) {
+                const m = MONEY_REGEX.exec(token);
+                if (m) {
+                    order
+                        .setItemName("Bag Fee")
+                        .setItemQuantity(1)
+                        .setItemPrice(m[0])
+                        .finalizeItem();
+                }
+                return unknown;
+            },
+        },
+        {
+            equals: "Grand Total",
+            handler: () => function groceryGrandTotal(token, order) {
+                const m = MONEY_REGEX.exec(token);
+                if (m) {
+                    order.setTotal(m[0]);
+                }
+                return unknown;
+            },
+        },
+        {
+            equals: "Payment Methods",
+            handler: () => function groceryPaymentMethods(token, order) {
+                return executeParserSteps([
+                    {
+                        equals: "Cash",
+                        handler: () => {
+                            order.addCashPayment();
+                            return groceryPaymentMethods;
+                        },
+                    },
+                    {
+                        matches: /^(Visa|MasterCard|American Express|Discover)$/,
+                        handler: function groceryCreditCardPayment(creditCardTypeMatch, order) {
+                            return function groceryCreditCardNumber(ccNumberToken, order) {
+                                if (/^\*\d{4}$/.test(ccNumberToken)) {
+                                    order.addCreditCardPayment(creditCardTypeMatch[1], ccNumberToken.substring(1));
+                                    return groceryPaymentMethods;
+                                }
+                            };
+                        },
+                    },
+                    {
+                        matches: MONEY_REGEX,
+                        handler(m) {
+                            order.setPaymentAmount(m[0]);
+                            return groceryPaymentMethods;
+                        },
+                    },
+                    {
+                        equals: "How was your trip?",
+                        handler: () => unknown,
+                    },
+                ], token, order);
+            },
+        },
     ], token, order);
-}
-function pad(num, width) {
-    let s = num.toString();
-    while (s.length < width) {
-        s = `0${s}`;
-    }
-    return s;
 }
 //# sourceMappingURL=invoice.js.map

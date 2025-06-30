@@ -172,7 +172,7 @@ async function saveFixtureHTML(html) {
     const { html: anonymizedHTML, orderID: anonymizedOrderID } = await anonymizeInvoiceHTML(html, orderID, potentialOrderIDs);
     fixtureFile = path.join(fixturesDir, `invoice-${anonymizedOrderID}.html`);
     await fs.mkdir(path.dirname(fixtureFile), { recursive: true });
-    await fs.writeFile(path.join(fixturesDir, fixtureFile), anonymizedHTML);
+    await fs.writeFile(fixtureFile, anonymizedHTML);
     const jsonFile = path.join(fixturesDir, `invoice-${anonymizedOrderID}.json`);
     await fs.writeFile(jsonFile, "{}\n");
     return fixtureFile;
