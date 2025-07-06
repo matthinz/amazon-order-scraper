@@ -18,7 +18,8 @@ export function parseMonetaryAmount(amount) {
     if (parts.length > 2) {
         throw new Error(`Invalid monetary amount: ${amount}`);
     }
-    const cents = parts[0] * 100 + (parts[1] || 0);
+    const sign = parts[0] < 0 ? -1 : 1;
+    const cents = parts[0] * 100 + (parts[1] || 0) * sign;
     return {
         currency,
         value: amountAsString,

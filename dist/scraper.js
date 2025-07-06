@@ -2,7 +2,7 @@ import { JSDOM } from "jsdom";
 import path from "node:path";
 import { chromium } from "playwright-extra";
 import { DataStore } from "./datastore.js";
-import { parseInvoice } from "./invoice.js";
+import { parseInvoiceHTML } from "./invoice-parser/main.js";
 const ORDERS_URL = "/your-orders/orders";
 const MIN_ORDER_AGE_TO_USE_CACHE_IN_MS = 30 * 24 * 60 * 60 * 1000;
 const INVOICE_LINK_SELECTOR = 'a[href*="print.html"]';
@@ -219,7 +219,13 @@ export class Scraper {
                 this.onCacheMiss(key, "No value found in cache");
                 return;
             }
-            const order = parseInvoice(value);
+            let order;
+            try {
+                order = parseInvoiceHTML(value);
+            }
+            catch (err) {
+                throw new InvoiceParsingFailedError(err.message, value);
+            }
             const { date } = order;
             if (date == null) {
                 wasCached = false;
@@ -237,7 +243,7 @@ export class Scraper {
         };
         const updateCache = async (key, value) => {
             try {
-                parseInvoice(value);
+                parseInvoiceHTML(value);
             }
             catch (err) {
                 throw new InvoiceParsingFailedError(err.message, value);
@@ -251,7 +257,7 @@ export class Scraper {
             updateCache,
         }, async (url, _document, rawContent, page) => {
             try {
-                const order = parseInvoice(rawContent, this.debug);
+                const order = parseInvoiceHTML(rawContent);
                 await this.datastore.saveOrder(order, this.#options.user, url, rawContent);
                 return order;
             }

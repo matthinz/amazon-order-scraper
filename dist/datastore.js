@@ -1,6 +1,6 @@
 import path from "node:path";
 import sqlite from "node:sqlite";
-import { parseInvoice } from "./invoice.js";
+import { parseInvoiceHTML } from "./invoice-parser/main.js";
 export class DataStore {
     #dbPromise;
     #filename;
@@ -33,7 +33,7 @@ export class DataStore {
             .all()
             .map((row) => {
             try {
-                return parseInvoice(row.invoice_html);
+                return parseInvoiceHTML(row.invoice_html);
             }
             catch (err) {
                 throw new Error(`Error parsing invoice ${row.order_id}: ${err.message}`);
