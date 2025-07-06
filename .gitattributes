@@ -1,0 +1,2 @@
+fixtures/*.json filter=git-crypt diff=git-crypt
+fixtures/*.html filter=git-crypt diff=git-crypt
