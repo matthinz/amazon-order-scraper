@@ -68,9 +68,9 @@ export class OrderBuilder {
             throw new Error(`Invalid date format: ${date}. Expected YYYY-MM-DD`);
         }
         if (this.#assumePaymentCoversFullAmount && this.#payments.length > 1) {
-            const anyPaymentMissingAmount = this.#payments.some((p) => p.amount == null);
-            if (anyPaymentMissingAmount) {
-                throw new Error("Assuming payment covers full amount but multiple payments are set, some missing amount");
+            const paymentsMissingAmount = this.#payments.filter((p) => p.amount == null);
+            if (paymentsMissingAmount.length > 1) {
+                throw new Error("Assuming payment covers full amount but multiple payments are missing amounts");
             }
         }
         return {
@@ -86,8 +86,15 @@ export class OrderBuilder {
                     throw new Error(`Payment ${index} date not set`);
                 }
                 if (p.amount == null && this.#assumePaymentCoversFullAmount) {
-                    p.amount = total;
-                    p.amountCents = totalCents;
+                    let remainingAmountCents = this.#payments.reduce((amt, p) => amt - (p.amountCents ?? 0), totalCents);
+                    if (remainingAmountCents < 0) {
+                        throw new Error(`Payment ${index} amount cannot be set to negative value: ${remainingAmountCents}`);
+                    }
+                    p.amount = formatMonetaryAmount({
+                        currency: this.#order.currency,
+                        cents: remainingAmountCents,
+                    });
+                    p.amountCents = remainingAmountCents;
                 }
                 const amount = ensure(p, "amount");
                 const amountCents = ensure(p, "amountCents");
@@ -230,6 +237,11 @@ export class OrderBuilder {
      */
     nothingWillBeShipped() {
         this.#shippingAddressRequired = false;
+        return this;
+    }
+    resetPaymentInformation() {
+        this.#payments = [];
+        this.#assumePaymentCoversFullAmount = false;
         return this;
     }
     setCreditCardLast4(last4) {

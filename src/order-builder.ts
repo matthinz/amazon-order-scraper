@@ -96,12 +96,13 @@ export class OrderBuilder {
     }
 
     if (this.#assumePaymentCoversFullAmount && this.#payments.length > 1) {
-      const anyPaymentMissingAmount = this.#payments.some(
+      const paymentsMissingAmount = this.#payments.filter(
         (p) => p.amount == null,
       );
-      if (anyPaymentMissingAmount) {
+
+      if (paymentsMissingAmount.length > 1) {
         throw new Error(
-          "Assuming payment covers full amount but multiple payments are set, some missing amount",
+          "Assuming payment covers full amount but multiple payments are missing amounts",
         );
       }
     }
@@ -121,8 +122,20 @@ export class OrderBuilder {
         }
 
         if (p.amount == null && this.#assumePaymentCoversFullAmount) {
-          p.amount = total;
-          p.amountCents = totalCents;
+          let remainingAmountCents = this.#payments.reduce<number>(
+            (amt, p) => amt - (p.amountCents ?? 0),
+            totalCents,
+          );
+          if (remainingAmountCents < 0) {
+            throw new Error(
+              `Payment ${index} amount cannot be set to negative value: ${remainingAmountCents}`,
+            );
+          }
+          p.amount = formatMonetaryAmount({
+            currency: this.#order.currency,
+            cents: remainingAmountCents,
+          });
+          p.amountCents = remainingAmountCents;
         }
 
         const amount = ensure(p, "amount");
@@ -293,6 +306,12 @@ export class OrderBuilder {
   nothingWillBeShipped(): this {
     this.#shippingAddressRequired = false;
 
+    return this;
+  }
+
+  resetPaymentInformation(): this {
+    this.#payments = [];
+    this.#assumePaymentCoversFullAmount = false;
     return this;
   }
 

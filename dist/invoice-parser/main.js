@@ -132,7 +132,12 @@ export const onlineOrder = newParserState("online_order", {
     },
 }, {
     equals: "Credit Card transactions",
-    process: () => onlineOrderPayment,
+    process: (_, order, options) => {
+        // It's possible that we've already decided to infer payment information,
+        // but this invoice has lots of detail for us--let's use it.
+        order.resetPaymentInformation();
+        return onlineOrderPayment;
+    },
 });
 export const onlineOrderItems = newParserState("online_order_items", {
     matches: `^(\\d+) of: (.+)$`,
@@ -284,6 +289,27 @@ const onlineOrderPayment = newParserState("online_order_payment", {
             matches: ".+",
             process: onlineOrder,
         });
+    },
+}, {
+    matches: `^Payment Method: (${CREDIT_CARD_NAME_PATTERN})$`,
+    process: ([_, ccName], order) => {
+        return newParserState("looking_for_ending_in", {
+            matches: `^ending in (\\d{4})$`,
+            process: ([_, lastFour], order, options) => {
+                order
+                    .addCreditCardPayment(ccName, lastFour)
+                    .assumePaymentCoversFullAmount();
+                return onlineOrder;
+            },
+        }, {
+            matches: ".+",
+            process: onlineOrder,
+        });
+    },
+}, {
+    equals: "Amazon gift card balance",
+    process: (_, order) => {
+        return true;
     },
 }, {
     equals: "Billing address",
