@@ -383,7 +383,13 @@ export class Scraper {
         return;
       }
 
-      const order = parseInvoiceHTML(value);
+      let order: Order | undefined;
+
+      try {
+        order = parseInvoiceHTML(value);
+      } catch (err) {
+        throw new InvoiceParsingFailedError(err.message, value);
+      }
 
       const { date } = order;
       if (date == null) {

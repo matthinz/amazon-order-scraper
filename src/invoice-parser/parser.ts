@@ -146,3 +146,11 @@ export function consumeNextToken<T>(
   Object.defineProperty(func, "name", { value: name });
   return func;
 }
+
+export function skipNextToken<T>(
+  nextParserState: ParserState<T>,
+): ParserState<T> {
+  return (_token: string, _context: T, _options: ParserOptions<T>) => {
+    return nextParserState;
+  };
+}

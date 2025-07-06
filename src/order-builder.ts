@@ -41,12 +41,24 @@ export class OrderBuilder {
   #lastItemFinalized = false;
   #shippingAddressRequired = true;
   #shouldAdjustTotalBasedOnGiftCards = false;
+  #assumedItemQuantity: number | undefined;
+  #assumePaymentCoversFullAmount: boolean = false;
 
   constructor(options?: OrderBuilderOptions) {
     this.#options = {
       onAttributeCaptured: (attr, value) => {},
       ...(options ?? {}),
     };
+  }
+
+  assumeItemQuantity(quantity = 1) {
+    this.#assumedItemQuantity = quantity;
+    return this;
+  }
+
+  assumePaymentCoversFullAmount(): this {
+    this.#assumePaymentCoversFullAmount = true;
+    return this;
   }
 
   adjustTotalBasedOnGiftCard(): this {
@@ -83,6 +95,17 @@ export class OrderBuilder {
       throw new Error(`Invalid date format: ${date}. Expected YYYY-MM-DD`);
     }
 
+    if (this.#assumePaymentCoversFullAmount && this.#payments.length > 1) {
+      const anyPaymentMissingAmount = this.#payments.some(
+        (p) => p.amount == null,
+      );
+      if (anyPaymentMissingAmount) {
+        throw new Error(
+          "Assuming payment covers full amount but multiple payments are set, some missing amount",
+        );
+      }
+    }
+
     return {
       id: ensure(this.#order, "id"),
       currency: ensure(this.#order, "currency"),
@@ -95,6 +118,11 @@ export class OrderBuilder {
         const date = p.date ?? this.#order.date;
         if (date == null) {
           throw new Error(`Payment ${index} date not set`);
+        }
+
+        if (p.amount == null && this.#assumePaymentCoversFullAmount) {
+          p.amount = total;
+          p.amountCents = totalCents;
         }
 
         const amount = ensure(p, "amount");
@@ -193,6 +221,7 @@ export class OrderBuilder {
       cardType,
       last4,
     });
+
     return this;
   }
 
@@ -205,7 +234,23 @@ export class OrderBuilder {
   }
 
   finalizeItem(): this {
+    const shipment = this.ensureShipment();
+    const item = shipment.items[shipment.items.length - 1];
+
+    if (item != null && item.quantity == null) {
+      if (this.#assumedItemQuantity != null) {
+        item.quantity = this.#assumedItemQuantity;
+        if (this.#options.onAttributeCaptured) {
+          this.#options.onAttributeCaptured(
+            "itemQuantity",
+            this.#assumedItemQuantity,
+          );
+        }
+      }
+    }
+
     this.#lastItemFinalized = true;
+    this.#assumedItemQuantity = undefined;
     return this;
   }
 

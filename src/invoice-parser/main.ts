@@ -2,10 +2,11 @@ import { formatMonetaryAmount, parseMonetaryAmount } from "../money.ts";
 import { OrderBuilder, type OrderBuilderOptions } from "../order-builder.ts";
 import type { Order } from "../types.ts";
 import { getContentChunks } from "./html.ts";
-import { createParser, newParserState } from "./parser.ts";
+import { createParser, newParserState, skipNextToken } from "./parser.ts";
 import {
   AMAZON_ORDER_ID_PATTERN,
   CREDIT_CARD_NAME_PATTERN,
+  DATE_MMMM_DD_PATTERN,
   DATE_MMMM_DD_YYYY_PATTERN,
   MONEY_PATTERN,
 } from "./patterns.ts";
@@ -124,7 +125,11 @@ export const onlineOrder = newParserState(
     process: () => onlineOrderItems,
   },
   {
-    matches: "^(Delivered|Return started|Arriving tomorrow)$",
+    matches: "^Return started$",
+    process: () => onlineOrderItemsV2ReturnStarted,
+  },
+  {
+    matches: "^(Delivered|Arriving tomorrow)$",
     process: () => onlineOrderItemsV2,
   },
   {
@@ -152,13 +157,10 @@ export const onlineOrder = newParserState(
       return true;
     },
   },
-  // {
-  //   matches: `^Total before tax: (${MONEY_PATTERN})`,
-  //   process: ([_, subtotal], order: OrderBuilder) => {
-  //     order.setSubtotal(subtotal);
-  //     return true;
-  //   },
-  // },
+  {
+    equals: "Payment information",
+    process: () => onlineOrderPayment,
+  },
   {
     matches: `^Estimated tax to be collected: (${MONEY_PATTERN})`,
     process: ([_, tax], order: OrderBuilder) => {
@@ -228,6 +230,17 @@ export const onlineOrderItemsV2 = newParserState(
     process: () => true,
   },
   {
+    matches: `^${DATE_MMMM_DD_PATTERN}$`,
+    process: () => true,
+  },
+  {
+    matches: /^\d+$/,
+    process: ([quantity], order: OrderBuilder) => {
+      order.setItemQuantity(quantity);
+      return true;
+    },
+  },
+  {
     matches: "^Sold by: (.+)$",
     process: () => true,
   },
@@ -236,7 +249,11 @@ export const onlineOrderItemsV2 = newParserState(
     process: () => true,
   },
   {
-    matches: "^Return or replace items:",
+    matches: /^Auto-delivered:/,
+    process: () => true,
+  },
+  {
+    matches: "^Return (or replace )?items:",
     process: () => true,
   },
   {
@@ -246,18 +263,47 @@ export const onlineOrderItemsV2 = newParserState(
   {
     matches: `^(${MONEY_PATTERN})$`,
     process: ([price], order: OrderBuilder) => {
-      // TODO: Need example w/ quantity > 1
-      order.setItemPrice(price).setItemQuantity(1).finalizeItem();
-      return newParserState("skip_next_price_token", {
-        matches: `^(${MONEY_PATTERN})$`,
-        process: ([nextPrice], order: OrderBuilder) => {
-          return onlineOrderItemsV2;
-        },
-      });
+      order.assumeItemQuantity(1).setItemPrice(price).finalizeItem();
+      return skipNextToken(onlineOrderItemsV2);
     },
   },
   {
     matches: /.+/,
+    process: ([itemName], order: OrderBuilder) => {
+      order.setItemName(itemName);
+      return true;
+    },
+  },
+);
+
+export const onlineOrderItemsV2ReturnStarted = newParserState(
+  "online_order_items_v2_return_started",
+  {
+    equals: "Your refund will be processed when we receive your item.",
+    process: () => true,
+  },
+  {
+    matches: "^(Sold by|Supplied by):",
+    process: () => true,
+  },
+  {
+    equals: "Delivered",
+    process: () => onlineOrderItemsV2,
+  },
+  {
+    equals: "Payment method",
+    process: () => onlineOrderPayment,
+  },
+  {
+    matches: `^(${MONEY_PATTERN})$`,
+    process: ([amount], order: OrderBuilder) => {
+      // TODO: quantity is not present?
+      order.assumeItemQuantity(1).setItemPrice(amount).finalizeItem();
+      return skipNextToken(onlineOrderItemsV2ReturnStarted);
+    },
+  },
+  {
+    matches: ".+",
     process: ([itemName], order: OrderBuilder) => {
       order.setItemName(itemName);
       return true;
@@ -287,7 +333,7 @@ export const onlineOrderShipping = newParserState(
   },
   {
     equals: "Payment method",
-    process: () => onlineOrder,
+    process: () => onlineOrderPayment,
   },
   {
     equals: "(Full address hidden for privacy.)",
@@ -335,11 +381,29 @@ const onlineOrderPayment = newParserState(
     },
   },
   {
-    matches: "^ending in (\\d{4})",
-    process: ([_, lastFour], order: OrderBuilder) => {
-      order.setCreditCardLast4(lastFour);
-      return true;
+    matches: `^(${CREDIT_CARD_NAME_PATTERN})$`,
+    process: ([ccName], order: OrderBuilder) => {
+      return newParserState(
+        "looking_for_ending_in",
+        {
+          matches: `^ending in (\\d{4})$`,
+          process: ([_, lastFour], order, options) => {
+            order
+              .addCreditCardPayment(ccName, lastFour)
+              .assumePaymentCoversFullAmount();
+            return onlineOrder;
+          },
+        },
+        {
+          matches: ".+",
+          process: onlineOrder,
+        },
+      );
     },
+  },
+  {
+    equals: "Billing address",
+    process: () => onlineOrderBilling,
   },
 );
 
