@@ -1,5 +1,6 @@
 import path from "node:path";
 import sqlite from "node:sqlite";
+import { saveFixtureHTML } from "./fixtures.js";
 import { parseInvoiceHTML } from "./invoice-parser/main.js";
 export class DataStore {
     #dbPromise;
@@ -29,17 +30,16 @@ export class DataStore {
     async getOrders() {
         const db = await this.initDB();
         const statement = db.prepare("SELECT * FROM orders");
-        return statement
-            .all()
-            .map((row) => {
+        const orders = await Promise.all(statement.all().map(async (row) => {
             try {
                 return parseInvoiceHTML(row.invoice_html);
             }
             catch (err) {
-                throw new Error(`Error parsing invoice ${row.order_id}: ${err.message}`);
+                const fixtureFile = await saveFixtureHTML(row.invoice_html);
+                throw new Error(`Error parsing invoice ${row.id}: ${err.message}. Invoice fixtures saved to ${fixtureFile}`);
             }
-        })
-            .sort((a, b) => (a.date ?? "").localeCompare(b.date));
+        }));
+        return orders.sort((a, b) => (a.date ?? "").localeCompare(b.date));
     }
     async getUsers() {
         const db = await this.initDB();

@@ -45,6 +45,7 @@ export type Payment = CreditCardPayment | GiftCardPayment | CashPayment;
 
 export type ShippingAddress = {
   name: string;
+  name2?: string;
   address: string;
   city: string;
   state: string;

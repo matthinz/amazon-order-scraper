@@ -138,6 +138,34 @@ export const onlineOrder = newParserState("online_order", {
         order.resetPaymentInformation();
         return onlineOrderPayment;
     },
+}, {
+    matches: `E-mail gift card to: (.+)`,
+    process: ([_, email], order) => {
+        order.nothingWillBeShipped().setItemName(`Gift card: ${email}`);
+        return newParserState("look_for_gift_card_amount", {
+            matches: `^(${MONEY_PATTERN})$`,
+            process: ([amount], order) => {
+                order.assumeItemQuantity(1).setItemPrice(amount).finalizeItem();
+                return onlineOrder;
+            },
+        });
+    },
+}, {
+    matches: `^Payment Method: (${CREDIT_CARD_NAME_PATTERN})$`,
+    process: ([_, ccName], order) => {
+        return newParserState("looking_for_ending_in", {
+            matches: `Last digits: (\\d{4})\\b`,
+            process: ([_, lastFour], order, options) => {
+                order
+                    .addCreditCardPayment(ccName, lastFour)
+                    .assumePaymentCoversFullAmount();
+                return onlineOrder;
+            },
+        }, {
+            matches: ".+",
+            process: onlineOrder,
+        });
+    },
 });
 export const onlineOrderItems = newParserState("online_order_items", {
     matches: `^(\\d+) of: (.+)$`,
@@ -255,7 +283,7 @@ export const onlineOrderShipping = newParserState("online_order_shipping", {
 }, {
     matches: `^(?<city>.+), (?<state>[A-Z]+) (?<zip>\\d{5}(?:-\\d{4})?)$`,
     process: ({ groups: { city, state, zip } }, order) => {
-        order.setShippingCity(city).setShippingState(state).setShippingZip(zip);
+        order.setShippingCityStateZip(city, state, zip);
         return true;
     },
 }, {
@@ -305,6 +333,12 @@ const onlineOrderPayment = newParserState("online_order_payment", {
             matches: ".+",
             process: onlineOrder,
         });
+    },
+}, {
+    matches: `^Item\\(s\\) Subtotal: (${MONEY_PATTERN})$`,
+    process: ([_, subtotal], order) => {
+        order.setSubtotal(subtotal);
+        return onlineOrder;
     },
 }, {
     equals: "Amazon gift card balance",

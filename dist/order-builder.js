@@ -145,6 +145,9 @@ export class OrderBuilder {
                         zip: ensure(s.shippingAddress, "zip"),
                         country: ensure(s.shippingAddress, "country"),
                     };
+                    if (s.shippingAddress.name2 != null) {
+                        result.shippingAddress.name2 = s.shippingAddress.name2;
+                    }
                 }
                 if (s.date != null) {
                     result.date = s.date;
@@ -412,6 +415,22 @@ export class OrderBuilder {
             shippingAddress.city = city;
         }
         return this;
+    }
+    setShippingCityStateZip(city, state, zip) {
+        const shipment = this.ensureShipment();
+        const citySetButNothingElse = shipment.shippingAddress.city != null &&
+            shipment.shippingAddress.state == null &&
+            shipment.shippingAddress.zip == null;
+        if (citySetButNothingElse) {
+            // using setNextShippingAddressField() can get confused if there are two
+            // lines used for the recipient (e.g. name / company name)
+            shipment.shippingAddress.name2 = shipment.shippingAddress.address;
+            shipment.shippingAddress.address = city;
+            shipment.shippingAddress.city = undefined;
+        }
+        return this.setShippingCity(city)
+            .setShippingState(state)
+            .setShippingZip(zip);
     }
     setShippingCountry(country) {
         const { shippingAddress } = this.ensureShipment();
