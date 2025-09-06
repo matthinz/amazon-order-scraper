@@ -38,6 +38,20 @@ export class DataStore {
     statement.run(key, value, new Date().toISOString());
   }
 
+  async getInvoiceHTML(orderID: string): Promise<string | undefined> {
+    const db = await this.initDB();
+    const statement = db.prepare(
+      "SELECT invoice_html FROM orders WHERE id = ?",
+    );
+    const row = statement.get(orderID) as any;
+
+    if (!row) {
+      return;
+    }
+
+    return row.invoice_html ?? "";
+  }
+
   async getOrders(): Promise<Order[]> {
     const db = await this.initDB();
     const statement = db.prepare("SELECT * FROM orders");

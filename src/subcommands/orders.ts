@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { getContentChunks } from "../invoice-parser/html.ts";
 import {
   formatMonetaryAmount,
   monetaryAmountsEqual,
@@ -18,6 +19,12 @@ export async function orders({
       },
       charge: {
         type: "string",
+      },
+      html: {
+        type: "boolean",
+      },
+      tokens: {
+        type: "boolean",
       },
     },
     allowPositionals: true,
@@ -63,27 +70,42 @@ export async function orders({
     orders = orders.filter((order) => options.positionals.includes(order.id));
   }
 
-  orders.forEach((order) => {
-    console.log(
-      [
-        order.date,
-        order.id,
-        order.subtotal,
-        order.tax,
-        order.shippingCost,
-        order.total,
-      ].join(" "),
-    );
+  await Promise.all(
+    orders.map(async (order) => {
+      if (options.values.html) {
+        console.log(await datastore.getInvoiceHTML(order.id));
+        return;
+      }
 
-    order.shipments.forEach((shipment) => {
-      console.log(`  Shipped: ${shipment.date}`);
-      shipment.items.forEach((item) => {
-        console.log(`    ${item.name} ${item.price}`);
+      if (options.values.tokens) {
+        const html = await datastore.getInvoiceHTML(order.id);
+        getContentChunks(html).forEach((chunk) => {
+          console.log(chunk);
+        });
+        return;
+      }
+
+      console.log(
+        [
+          order.date,
+          order.id,
+          order.subtotal,
+          order.tax,
+          order.shippingCost,
+          order.total,
+        ].join(" "),
+      );
+
+      order.shipments.forEach((shipment) => {
+        console.log(`  Shipped: ${shipment.date}`);
+        shipment.items.forEach((item) => {
+          console.log(`    ${item.name} ${item.price}`);
+        });
       });
-    });
 
-    order.payments.forEach((payment) => {
-      console.log(`  Paid: ${payment.date} ${payment.amount}`);
-    });
-  });
+      order.payments.forEach((payment) => {
+        console.log(`  Paid: ${payment.date} ${payment.amount}`);
+      });
+    }),
+  );
 }

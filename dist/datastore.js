@@ -27,6 +27,15 @@ export class DataStore {
         const statement = db.prepare("INSERT INTO cache (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at");
         statement.run(key, value, new Date().toISOString());
     }
+    async getInvoiceHTML(orderID) {
+        const db = await this.initDB();
+        const statement = db.prepare("SELECT invoice_html FROM orders WHERE id = ?");
+        const row = statement.get(orderID);
+        if (!row) {
+            return;
+        }
+        return row.invoice_html ?? "";
+    }
     async getOrders() {
         const db = await this.initDB();
         const statement = db.prepare("SELECT * FROM orders");

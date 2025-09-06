@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { getContentChunks } from "../invoice-parser/html.js";
 import { formatMonetaryAmount, monetaryAmountsEqual, parseMonetaryAmount, } from "../money.js";
 export async function orders({ args, datastore, }) {
     const options = parseArgs({
@@ -9,6 +10,12 @@ export async function orders({ args, datastore, }) {
             },
             charge: {
                 type: "string",
+            },
+            html: {
+                type: "boolean",
+            },
+            tokens: {
+                type: "boolean",
             },
         },
         allowPositionals: true,
@@ -37,7 +44,18 @@ export async function orders({ args, datastore, }) {
     if (options.positionals.length > 0) {
         orders = orders.filter((order) => options.positionals.includes(order.id));
     }
-    orders.forEach((order) => {
+    await Promise.all(orders.map(async (order) => {
+        if (options.values.html) {
+            console.log(await datastore.getInvoiceHTML(order.id));
+            return;
+        }
+        if (options.values.tokens) {
+            const html = await datastore.getInvoiceHTML(order.id);
+            getContentChunks(html).forEach((chunk) => {
+                console.log(chunk);
+            });
+            return;
+        }
         console.log([
             order.date,
             order.id,
@@ -55,6 +73,6 @@ export async function orders({ args, datastore, }) {
         order.payments.forEach((payment) => {
             console.log(`  Paid: ${payment.date} ${payment.amount}`);
         });
-    });
+    }));
 }
 //# sourceMappingURL=orders.js.map

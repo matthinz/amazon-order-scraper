@@ -9,6 +9,7 @@ import {
   DATE_MMMM_DD_PATTERN,
   DATE_MMMM_DD_YYYY_PATTERN,
   MONEY_PATTERN,
+  TIME_OF_DAY_PATTERN,
 } from "./patterns.ts";
 import type { ParserOptions } from "./types.ts";
 
@@ -131,6 +132,10 @@ export const onlineOrder = newParserState(
   {
     matches: "^(Delivered|Arriving tomorrow)$",
     process: () => onlineOrderItemsV2,
+  },
+  {
+    matches: "Now arriving today",
+    process: () => onlineOrderLookForArrivalWindow,
   },
   {
     matches: `^Item\\(s\\) Subtotal: (${MONEY_PATTERN})`,
@@ -347,6 +352,17 @@ export const onlineOrderItemsV2ReturnStarted = newParserState(
     process: ([itemName], order: OrderBuilder) => {
       order.setItemName(itemName);
       return true;
+    },
+  },
+);
+
+export const onlineOrderLookForArrivalWindow = newParserState(
+  "look_for_arrival_window",
+  {
+    matches: `^(${TIME_OF_DAY_PATTERN} - (${TIME_OF_DAY_PATTERN}))$`,
+    process: ([_, startDate, endDate], order: OrderBuilder) => {
+      // Not currently used
+      return onlineOrderItemsV2;
     },
   },
 );

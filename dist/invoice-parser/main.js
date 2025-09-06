@@ -2,7 +2,7 @@ import { formatMonetaryAmount, parseMonetaryAmount } from "../money.js";
 import { OrderBuilder } from "../order-builder.js";
 import { getContentChunks } from "./html.js";
 import { createParser, newParserState, skipNextToken } from "./parser.js";
-import { AMAZON_ORDER_ID_PATTERN, CREDIT_CARD_NAME_PATTERN, DATE_MMMM_DD_PATTERN, DATE_MMMM_DD_YYYY_PATTERN, MONEY_PATTERN, } from "./patterns.js";
+import { AMAZON_ORDER_ID_PATTERN, CREDIT_CARD_NAME_PATTERN, DATE_MMMM_DD_PATTERN, DATE_MMMM_DD_YYYY_PATTERN, MONEY_PATTERN, TIME_OF_DAY_PATTERN, } from "./patterns.js";
 export const parseInvoiceHTML = (html, options) => {
     const tokens = getContentChunks(html);
     const orderBuilder = new OrderBuilder(options);
@@ -85,6 +85,9 @@ export const onlineOrder = newParserState("online_order", {
 }, {
     matches: "^(Delivered|Arriving tomorrow)$",
     process: () => onlineOrderItemsV2,
+}, {
+    matches: "Now arriving today",
+    process: () => onlineOrderLookForArrivalWindow,
 }, {
     matches: `^Item\\(s\\) Subtotal: (${MONEY_PATTERN})`,
     process: ([_, subtotal], order) => {
@@ -256,6 +259,13 @@ export const onlineOrderItemsV2ReturnStarted = newParserState("online_order_item
     process: ([itemName], order) => {
         order.setItemName(itemName);
         return true;
+    },
+});
+export const onlineOrderLookForArrivalWindow = newParserState("look_for_arrival_window", {
+    matches: `^(${TIME_OF_DAY_PATTERN} - (${TIME_OF_DAY_PATTERN}))$`,
+    process: ([_, startDate, endDate], order) => {
+        // Not currently used
+        return onlineOrderItemsV2;
     },
 });
 export const onlineOrderShipping = newParserState("online_order_shipping", {
